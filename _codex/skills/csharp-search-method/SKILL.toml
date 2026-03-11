@@ -1,0 +1,22 @@
+[interface]
+display_name = "C# Search Method (Indexed)"
+short_description = "Fast indexed method search via CallGraph CLI (no ad-hoc scripts; no repo scanning)."
+brand_color = "#F59E0B"
+
+default_prompt = """
+Search for methods using CallGraph CLI command `callgraph search-method`. Prefer this over scanning source with rg because it is significantly faster and returns structured method locations. Narrow-first: when the containing file is known, include filePath; if only folder is known, include folderPath before searching project-wide. If a full method inventory is requested without a name pattern, use `callgraph list-methods` with visibility filtering.
+MUST run `callgraph search-method` as a foreground blocking command (never background terminals). If a background run starts accidentally, stop it and rerun in foreground.
+Search behavior: non-regex queries use hybrid lexical token matching (namespace/class/method/signature) plus top-K semantic reranking. Regex queries (`--regex`) use regex-only matching.
+Mode selection by prompt type: identifier-known prompts use identifier path (`search-file --pattern` then `search-method --pattern`), while exploratory prompts with no concrete identifiers (for example "where are interchange fees calculated for Adyen payments") use semantic `--keywords` first.
+Query sequence: run one narrow scoped query first, loosen one dimension at a time, and only switch modes if results remain unclear.
+Never run multiple search-method queries in parallel/background unless the user explicitly asks for parallel search.
+Do not start with wildcard-heavy patterns like `*Reassign*Terminal*` unless the user explicitly asks.
+Guardrails (prompt -> expected first command):
+- "use callgraph skill to list all callers to method GetBalanceAccountAsync in AdyenBalanceCommunicationComponent with call depth 2" -> `callgraph search-file --pattern "*AdyenBalanceCommunicationComponent.cs"` (if file unknown) then identifier pattern search.
+- "In this codebase, where are interchange fees calculated for Adyen payments?" -> `callgraph search-method --keywords "adyen interchange fee calculation"`.
+Semantic reranking requires local `models/bge-small-en-v1.5` model files; if unavailable, search falls back to lexical-only ranking.
+search-method returns streamlined JSON records directly.
+Never use `python3 << 'EOF'` or create temporary parser scripts for CallGraph JSON.
+Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
+
+"""

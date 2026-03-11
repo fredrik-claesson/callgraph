@@ -1,0 +1,15 @@
+root = true
+
+# Keep this file small and focused: only enable signals we’re acting on.
+[*.cs]
+# CA1812: Avoid uninstantiated internal classes.
+# Use warning so candidates show up in `dotnet build` output, but we do NOT fail builds.
+dotnet_diagnostic.CA1812.severity = warning
+
+# Unused member analyzers (run during build via EnforceCodeStyleInBuild=true)
+# IDE0051: Remove unused private members
+dotnet_diagnostic.IDE0051.severity = warning
+# IDE0052: Remove unread private members (e.g., unused private fields)
+dotnet_diagnostic.IDE0052.severity = warning
+# IDE0060: Remove unused parameter
+dotnet_diagnostic.IDE0060.severity = warning

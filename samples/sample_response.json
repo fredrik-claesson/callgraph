@@ -1,0 +1,854 @@
+{
+  "Version": 1,
+  "Targets": [
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddBalanceTopUpTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(Mews.Components.Clients.IClient, Mews.Entities.Finance.Payments.Payment, Mews.Entities.Globalization.Currencies.Amount, System.Guid?, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPayoutTransactions(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IEnumerable<Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Add_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.CreatePayoutTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAll_DoNotUse(bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetById_DoNotUse(System.Guid?, bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(System.Collections.Generic.IEnumerable<System.Guid>, bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetCount(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Threading.CancellationToken)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutReportingIdentifier(System.Guid)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Mews.Entities.Enterprises.Enterprise, System.Threading.CancellationToken, Mews.DateTimeInterval)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetRelatedTransactions(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.HardDelete(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayments(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.ToDebugDetails(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionUpdate>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdateAmount(Mews.Components.Clients.IClient, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutTransaction(Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)"
+  ],
+  "Nodes": [
+    {
+      "Id": "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddCommissionAdjustmentTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction SampleComponent.AddCommissionAdjustmentTransaction(MerchantIntegration merchantIntegration, Amount amount, Payment payment, string gatewayId = null)",
+      "ContainingType": "SampleComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\Core\\Mews.Business\\Internals\\Samples\\SampleComponent.cs",
+      "StartLine": 3505,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddPayoutTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction SampleComponent.AddPayoutTransaction(MerchantIntegration merchantIntegration, PayoutTransactionData payoutData)",
+      "ContainingType": "SampleComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\Core\\Mews.Business\\Internals\\Samples\\SampleComponent.cs",
+      "StartLine": 3494,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddBalanceTopUpTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddBalanceTopUpTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, string description, string gatewayId)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 39,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.AddChargeTransactions(IClient client, IReadOnlyList<Payment> payments)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 41,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, Payment payment, string gatewayId = null)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 43,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(Mews.Components.Clients.IClient, Mews.Entities.Finance.Payments.Payment, Mews.Entities.Globalization.Currencies.Amount, System.Guid?, string, string)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(IClient client, Payment payment, Amount amount, Guid? payoutTransactionId = null, string gatewayId = null, string description = null)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 45,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPayoutTransactions(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IEnumerable<Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData>)",
+      "Kind": "method",
+      "Display": "IEnumerable<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.AddPayoutTransactions(IClient client, MerchantIntegration merchantIntegration, IEnumerable<PayoutTransactionData> payouts)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 47,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, string description, string gatewayId)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 49,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Add_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.Add_DoNotUse(IClient client, IReadOnlyList<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 37,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.CreatePayoutTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.CreatePayoutTransaction(IClient client, MerchantIntegration merchantIntegration, PayoutTransactionData data)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 29,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.Get(MerchantBalanceTransactionFilters filters)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 15,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAll_DoNotUse(bool)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetAll_DoNotUse(bool onlyActive = true)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 17,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<IReadOnlyList<MerchantBalanceTransaction>> IMerchantBalanceTransactionComponent.GetAsync(MerchantBalanceTransactionFilters filters, CancellationToken cancellationToken)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 19,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetById_DoNotUse(System.Guid?, bool)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.GetById_DoNotUse(Guid? id, bool onlyActive = true)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 21,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(System.Collections.Generic.IEnumerable<System.Guid>, bool)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(IEnumerable<Guid> ids, bool onlyActive = true)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 23,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetCount(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Kind": "method",
+      "Display": "int IMerchantBalanceTransactionComponent.GetCount(MerchantBalanceTransactionFilters filters)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 27,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<Option<MerchantBalanceTransaction>> IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(MerchantIntegration integration, CancellationToken cancellationToken)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 71,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutReportingIdentifier(System.Guid)",
+      "Kind": "method",
+      "Display": "string IMerchantBalanceTransactionComponent.GetPayoutReportingIdentifier(Guid existingGuid)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 53,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Mews.Entities.Enterprises.Enterprise, System.Threading.CancellationToken, Mews.DateTimeInterval)",
+      "Kind": "method",
+      "Display": "Task<IReadOnlyList<PayoutSummary>> IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Enterprise enterprise, CancellationToken cancellationToken, DateTimeInterval createdUtc = null)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 51,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetRelatedTransactions(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetRelatedTransactions(MerchantBalanceTransaction transaction)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 25,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.HardDelete(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.HardDelete(IClient client, IReadOnlyList<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 67,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(IEnumerable<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 59,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayments(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.LoadPayments(IEnumerable<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 61,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(IEnumerable<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 65,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.LoadPayoutTransactions(IEnumerable<MerchantBalanceTransaction> transactions)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 63,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.ToDebugDetails(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Kind": "method",
+      "Display": "object IMerchantBalanceTransactionComponent.ToDebugDetails(MerchantBalanceTransaction transaction)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 69,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionUpdate>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.Update(IClient client, IReadOnlyList<MerchantBalanceTransactionUpdate> updates)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 31,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdateAmount(Mews.Components.Clients.IClient, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.UpdateAmount(IClient client, MerchantBalanceTransaction transaction, Amount newAmount)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 33,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(AmountSpace amounts, MerchantBalanceTransaction payout, IReadOnlyList<MerchantBalanceTransaction> payoutTransactions = null)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 55,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutTransaction(Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+      "Kind": "method",
+      "Display": "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.UpdatePayoutTransaction(MerchantBalanceTransaction payoutTransaction, PayoutTransactionData data)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 57,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Kind": "method",
+      "Display": "void IMerchantBalanceTransactionComponent.Update_DoNotUse(IClient client, IReadOnlyList<MerchantBalanceTransaction> updates)",
+      "ContainingType": "IMerchantBalanceTransactionComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+      "StartLine": 35,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.AlternativePaymentComponent.UpdateState(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.AlternativePayment>, Mews.Entities.Finance.Payments.PaymentState, Mews.Business.Finance.Payments.StateUpdateData)",
+      "Kind": "method",
+      "Display": "StateUpdateResult AlternativePaymentComponent.UpdateState(IClient client, IReadOnlyList<AlternativePayment> payments, PaymentState state, StateUpdateData updateData = null)",
+      "ContainingType": "AlternativePaymentComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Finance\\Payments\\AlternativePaymentComponent.cs",
+      "StartLine": 268,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.CreditCardPaymentComponent.AddChargeBalanceTransactionsForCreditCardPayment(Mews.Entities.Finance.Payments.CreditCardPayment)",
+      "Kind": "method",
+      "Display": "void CreditCardPaymentComponent.AddChargeBalanceTransactionsForCreditCardPayment(CreditCardPayment payment)",
+      "ContainingType": "CreditCardPaymentComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Finance\\Payments\\CreditCardPaymentComponent.cs",
+      "StartLine": 891,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Adyen.AdyenMarketPayPayoutComponent.ProcessPayout(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.PaymentProcessing.Integrations.Communication.Adyen.Dto.MarketPay.AdyenPayout, bool)",
+      "Kind": "method",
+      "Display": "void AdyenMarketPayPayoutComponent.ProcessPayout(PaymentGatewayClient client, AdyenPayout adyenPayout, bool balancePayoutNewGatewayIdEnabled = false)",
+      "ContainingType": "AdyenMarketPayPayoutComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Adyen\\AdyenMarketPayPayoutComponent.cs",
+      "StartLine": 50,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayPal.PayPalComponent.CreateBalanceTransactionForCrossBorderAndFxFees(Mews.Components.Clients.IClient, System.Collections.Generic.IEnumerable<Mews.Components.Integrations.Payments.Gateways.PayPal.IPayPalComponent.PayPalPaymentWithFeesAndSettledUtc>)",
+      "Kind": "method",
+      "Display": "void PayPalComponent.CreateBalanceTransactionForCrossBorderAndFxFees(IClient client, IEnumerable<PayPalPaymentWithFeesAndSettledUtc> paymentsWithFees)",
+      "ContainingType": "PayPalComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayPal\\PayPalComponent.cs",
+      "StartLine": 235,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.AddNewPayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, string, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.PaymentProcessing.Integrations.Communication.Stripe.Dto.PayoutMethod, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+      "Kind": "method",
+      "Display": "Try<Unit, PaymentGatewayNotificationError> PayoutBalanceUpdater.AddNewPayoutBalanceTransaction(PaymentGatewayClient client, string id, MerchantIntegration merchantIntegration, Amount amount, PayoutMetadataParameters metadataParameters = null, PayoutMethod payoutMethod = PayoutMethod.Standard, PayoutProcessingType? payoutProcessingType = null)",
+      "ContainingType": "PayoutBalanceUpdater",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayoutBalanceUpdater.cs",
+      "StartLine": 66,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.GetPayoutTransactions(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, string)",
+      "Kind": "method",
+      "Display": "IReadOnlyList<MerchantBalanceTransaction> PayoutBalanceUpdater.GetPayoutTransactions(MerchantIntegration merchantIntegration, string payoutId)",
+      "ContainingType": "PayoutBalanceUpdater",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayoutBalanceUpdater.cs",
+      "StartLine": 27,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.UpdateMerchantBalanceTransaction(string, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+      "Kind": "method",
+      "Display": "Try<Unit, PaymentGatewayNotificationError> PayoutBalanceUpdater.UpdateMerchantBalanceTransaction(string payoutId, MerchantBalanceTransaction transaction, Amount amount, PayoutMetadataParameters metadataParameters = null, PayoutProcessingType? payoutProcessingType = null)",
+      "ContainingType": "PayoutBalanceUpdater",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayoutBalanceUpdater.cs",
+      "StartLine": 88,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Stripe.StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>, Mews.Integrations.Payments.Gateways.Stripe.Payouts.StripePayoutChunk, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>)",
+      "Kind": "method",
+      "Display": "Option<MerchantBalanceTransaction> StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(PaymentGatewayClient client, MerchantIntegration integration, IReadOnlyList<Payment> unsettledPayments, IReadOnlyList<PayoutTransaction> transactionData, StripePayoutChunk stripePayoutChunk, IReadOnlyList<PayoutTransaction> payoutTransactionData)",
+      "ContainingType": "StripePayoutBalanceUpdater",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Stripe\\StripePayoutBalanceUpdater.cs",
+      "StartLine": 29,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Business:Mews.PaymentProcessing.Business.Integrations.Gateways.Adyen.Reconciliation.PaymentAccountingReportReconciliationComponent.ReconcilePayments(string)",
+      "Kind": "method",
+      "Display": "void PaymentAccountingReportReconciliationComponent.ReconcilePayments(string data)",
+      "ContainingType": "PaymentAccountingReportReconciliationComponent",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Adyen\\Reconciliation\\PaymentAccountingReportReconciliationComponent.cs",
+      "StartLine": 23,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.BalanceTopUpCreatedData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(TransactionContext context, BalanceTopUpCreatedData data, CancellationToken cancellationToken)",
+      "ContainingType": "BalanceTopUpCreatedFintechLedgerEventHandler",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PaymentProcessingEventHandlers\\BalanceTopUpCreatedFintechLedgerEventHandler.cs",
+      "StartLine": 21,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.PlatformFeeMerchantTransactionCompletedData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(TransactionContext context, PlatformFeeMerchantTransactionCompletedData data, CancellationToken cancellationToken)",
+      "ContainingType": "PlatformFeeChargedFintechLedgerEventHandler",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PaymentProcessingEventHandlers\\PlatformFeeChargedFintechLedgerEventHandler.cs",
+      "StartLine": 24,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> PayoutMetadataFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, PayoutMetadataFixerData data, CancellationToken cancellationToken)",
+      "ContainingType": "PayoutMetadataFixer",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PayoutMetadataFixer.cs",
+      "StartLine": 21,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreator.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreatorJobData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> StripePlatformFeeTransactionCreator.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, StripePlatformFeeTransactionCreatorJobData data, CancellationToken cancellationToken)",
+      "ContainingType": "StripePlatformFeeTransactionCreator",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\StripePlatformFeeTransactionCreator.cs",
+      "StartLine": 25,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> MissingBalanceTransactionFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, MissingBalanceTransactionFixerData data, CancellationToken cancellationToken)",
+      "ContainingType": "MissingBalanceTransactionFixer",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\MissingBalanceTransactionFixer.cs",
+      "StartLine": 21,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.AbsoluteCommissionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.AbsoluteCommissionFixerData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> AbsoluteCommissionFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, AbsoluteCommissionFixerData data, CancellationToken cancellationToken)",
+      "ContainingType": "AbsoluteCommissionFixer",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\AbsoluteCommissionFixer.cs",
+      "StartLine": 27,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionDeleter.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> DuplicateBalanceTransactionDeleter.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, DuplicateBalanceTransactionData data, CancellationToken cancellationToken)",
+      "ContainingType": "DuplicateBalanceTransactionDeleter",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\DuplicateBalanceTransactionDeleter.cs",
+      "StartLine": 28,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.MultiCurrencyBalanceTransactionGatewayAccountIdFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.MulticurrencyBalanceTransactionGatewayAccountIdFixerData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> MultiCurrencyBalanceTransactionGatewayAccountIdFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, MulticurrencyBalanceTransactionGatewayAccountIdFixerData data, CancellationToken cancellationToken)",
+      "ContainingType": "MultiCurrencyBalanceTransactionGatewayAccountIdFixer",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\MultiCurrencyBalanceTransactionGatewayAccountIdFixer.cs",
+      "StartLine": 26,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.StripeMoRRefundFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.StripeMoRRefundFixerData, System.Threading.CancellationToken)",
+      "Kind": "method",
+      "Display": "Task<JobExecutionResult> StripeMoRRefundFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, StripeMoRRefundFixerData data, CancellationToken cancellationToken)",
+      "ContainingType": "StripeMoRRefundFixer",
+      "FilePath": "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\StripeMoRRefundFixer.cs",
+      "StartLine": 19,
+      "Accessibility": "protected"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.ExportPayoutDetailAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<Unit>> PayoutsCommanderApiController.ExportPayoutDetailAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 396,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutTransactionsAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<PagedResult<IEnumerable<PayoutDetailResult>>>> PayoutsCommanderApiController.GetAllPayoutTransactionsAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 368,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutsAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<PagedResult<IEnumerable<Payout>>>> PayoutsCommanderApiController.GetAllPayoutsAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 168,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetInstantPayoutPaymentsAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<InstantPayoutPaymentsResult>> PayoutsCommanderApiController.GetInstantPayoutPaymentsAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 112,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetOpenPayoutsAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<OpenPayoutResult>> PayoutsCommanderApiController.GetOpenPayoutsAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 244,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<PayoutDetailSummary>> PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 322,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutSummariesAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<PayoutSummaryResult>> PayoutsCommanderApiController.GetPayoutSummariesAsync()",
+      "ContainingType": "PayoutsCommanderApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+      "StartLine": 302,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Api.Connector.V1.Controllers.Internal.CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+      "Kind": "method",
+      "Display": "Task<ActionResult<MewsPaymentTransactionsResult>> CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+      "ContainingType": "CeniumConnectorApiController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Connector\\V1\\Controllers\\Internal\\CeniumConnectorApiController.cs",
+      "StartLine": 20,
+      "Accessibility": "public"
+    },
+    {
+      "Id": "Mews.Server.Web:Mews.Server.Web.Controllers.Commander.MerchantBalanceTransactionController.Detail(System.Guid)",
+      "Kind": "method",
+      "Display": "Task<ActionResult> MerchantBalanceTransactionController.Detail(Guid id)",
+      "ContainingType": "MerchantBalanceTransactionController",
+      "FilePath": "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Controllers\\Commander\\Finance\\MerchantBalanceTransactionController.cs",
+      "StartLine": 33,
+      "Accessibility": "public"
+    }
+  ],
+  "Edges": [
+    {
+      "From": "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddCommissionAdjustmentTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddPayoutTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPayoutTransactions(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IEnumerable<Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.AlternativePaymentComponent.UpdateState(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.AlternativePayment>, Mews.Entities.Finance.Payments.PaymentState, Mews.Business.Finance.Payments.StateUpdateData)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.CreditCardPaymentComponent.AddChargeBalanceTransactionsForCreditCardPayment(Mews.Entities.Finance.Payments.CreditCardPayment)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Adyen.AdyenMarketPayPayoutComponent.ProcessPayout(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.PaymentProcessing.Integrations.Communication.Adyen.Dto.MarketPay.AdyenPayout, bool)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetRelatedTransactions(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayPal.PayPalComponent.CreateBalanceTransactionForCrossBorderAndFxFees(Mews.Components.Clients.IClient, System.Collections.Generic.IEnumerable<Mews.Components.Integrations.Payments.Gateways.PayPal.IPayPalComponent.PayPalPaymentWithFeesAndSettledUtc>)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(Mews.Components.Clients.IClient, Mews.Entities.Finance.Payments.Payment, Mews.Entities.Globalization.Currencies.Amount, System.Guid?, string, string)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.AddNewPayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, string, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.PaymentProcessing.Integrations.Communication.Stripe.Dto.PayoutMethod, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPayoutTransactions(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IEnumerable<Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.GetPayoutTransactions(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, string)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.UpdateMerchantBalanceTransaction(string, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.ToDebugDetails(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Stripe.StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>, Mews.Integrations.Payments.Gateways.Stripe.Payouts.StripePayoutChunk, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Stripe.StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>, Mews.Integrations.Payments.Gateways.Stripe.Payouts.StripePayoutChunk, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionUpdate>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Stripe.StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>, Mews.Integrations.Payments.Gateways.Stripe.Payouts.StripePayoutChunk, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Business:Mews.PaymentProcessing.Business.Integrations.Gateways.Adyen.Reconciliation.PaymentAccountingReportReconciliationComponent.ReconcilePayments(string)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.BalanceTopUpCreatedData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.BalanceTopUpCreatedData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.PlatformFeeMerchantTransactionCompletedData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.PlatformFeeMerchantTransactionCompletedData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreator.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreatorJobData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.ToDebugDetails(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionUpdate>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.AbsoluteCommissionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.AbsoluteCommissionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(System.Collections.Generic.IEnumerable<System.Guid>, bool)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.AbsoluteCommissionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.AbsoluteCommissionFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayments(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionDeleter.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(System.Collections.Generic.IEnumerable<System.Guid>, bool)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionDeleter.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.HardDelete(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionDeleter.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.MultiCurrencyBalanceTransactionGatewayAccountIdFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.MulticurrencyBalanceTransactionGatewayAccountIdFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.StripeMoRRefundFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.StripeMoRRefundFixerData, System.Threading.CancellationToken)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.ExportPayoutDetailAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutTransactionsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetCount(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetInstantPayoutPaymentsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetOpenPayoutsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutSummariesAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Mews.Entities.Enterprises.Enterprise, System.Threading.CancellationToken, Mews.DateTimeInterval)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Connector.V1.Controllers.Internal.CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Api.Connector.V1.Controllers.Internal.CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Controllers.Commander.MerchantBalanceTransactionController.Detail(System.Guid)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetRelatedTransactions(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    },
+    {
+      "From": "Mews.Server.Web:Mews.Server.Web.Controllers.Commander.MerchantBalanceTransactionController.Detail(System.Guid)",
+      "To": "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayments(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+      "Direction": "inbound",
+      "Kind": "calls"
+    }
+  ]
+}

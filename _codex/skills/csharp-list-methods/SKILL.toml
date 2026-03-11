@@ -1,0 +1,10 @@
+[interface]
+display_name = "C# List Methods (Indexed)"
+short_description = "List indexed methods via CallGraph CLI with visibility filter."
+brand_color = "#F59E0B"
+
+default_prompt = """
+List methods using CallGraph CLI command `callgraph list-methods`. Use visibility=external by default (public/protected/protected internal). Use visibility=internal only when non-public methods are explicitly requested. Prefer filePath or folderPath scoping when available.
+Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
+
+"""

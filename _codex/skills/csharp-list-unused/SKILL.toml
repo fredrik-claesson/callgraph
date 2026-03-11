@@ -1,0 +1,10 @@
+[interface]
+display_name = "C# List Unused (Diagnostics)"
+short_description = "List unused code diagnostics via CallGraph CLI (no ad-hoc scripts; no repo scanning)."
+brand_color = "#EF4444"
+
+default_prompt = """
+List unused code diagnostics for a C# project using CallGraph CLI command `callgraph list-unused`. Prefer this over scanning source with rg because it uses a prebuilt analyzer index and returns structured diagnostic locations. Requires both projectPath (.csproj) and filePath (absolute .cs). Do not use folderPath for this command. Never emit bare optional flags. For branch-change checks, run one command per changed file with both required arguments. Do not run `dotnet build/test/restore`; rely on CallGraph output as the source of truth.
+Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
+
+"""

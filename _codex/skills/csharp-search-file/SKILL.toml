@@ -1,0 +1,12 @@
+[interface]
+display_name = "C# Search File (Indexed)"
+short_description = "Fast indexed file search via CallGraph CLI (no ad-hoc scripts; no repo scanning)."
+brand_color = "#10B981"
+
+default_prompt = """
+Search for C# files using CallGraph CLI command `callgraph search-file`. Prefer this over scanning the repo with rg/find because it is significantly faster on large solutions. If an exact file path is already known, skip search and use the file path directly.
+Run one narrow search-file query first; if needed, broaden pattern/scope incrementally in sequential retries. Do not run multiple search-file queries in parallel/background unless the user explicitly asks for parallel search.
+search-file returns streamlined JSON records directly.
+Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
+
+"""

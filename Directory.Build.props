@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- Keep analyzers non-breaking: emit warnings, don’t fail the build. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- Enable IDE analyzers during build; we only promote selected rules to warnings via .editorconfig. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pin analyzers so rule IDs like CA1812 reliably run during build across SDKs. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

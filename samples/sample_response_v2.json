@@ -1,0 +1,1019 @@
+{
+  "v": 1,
+  "s": [
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddBalanceTopUpTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddChargeTransactions(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(Mews.Components.Clients.IClient, Mews.Entities.Finance.Payments.Payment, Mews.Entities.Globalization.Currencies.Amount, System.Guid?, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPayoutTransactions(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IEnumerable<Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, string, string)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Add_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.CreatePayoutTransaction(Mews.Components.Clients.IClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Get(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAll_DoNotUse(bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetAsync(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters, System.Threading.CancellationToken)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetById_DoNotUse(System.Guid?, bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(System.Collections.Generic.IEnumerable<System.Guid>, bool)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetCount(Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionFilters)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Threading.CancellationToken)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutReportingIdentifier(System.Guid)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Mews.Entities.Enterprises.Enterprise, System.Threading.CancellationToken, Mews.DateTimeInterval)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.GetRelatedTransactions(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.HardDelete(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayments(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.LoadPayoutTransactions(System.Collections.Generic.IEnumerable<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.ToDebugDetails(Mews.Entities.Finance.Balances.MerchantBalanceTransaction)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Business.Integrations.Payments.Gateways.Merchant.MerchantBalanceTransactionUpdate>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdateAmount(Mews.Components.Clients.IClient, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(Mews.Entities.Globalization.Currencies.AmountSpace, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.UpdatePayoutTransaction(Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+    "Mews.PaymentProcessing.Business.Contracts:Mews.Business.Integrations.Payments.Gateways.Merchant.IMerchantBalanceTransactionComponent.Update_DoNotUse(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Balances.MerchantBalanceTransaction>)",
+    "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddCommissionAdjustmentTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Entities.Finance.Payments.Payment, string)",
+    "method",
+    "MerchantBalanceTransaction SampleComponent.AddCommissionAdjustmentTransaction(MerchantIntegration merchantIntegration, Amount amount, Payment payment, string gatewayId = null)",
+    "SampleComponent",
+    "D:\\dev\\mews\\src\\Modules\\Core\\Mews.Business\\Internals\\Samples\\SampleComponent.cs",
+    "public",
+    "Mews.Business:Mews.Business.Internals.Samples.SampleComponent.AddPayoutTransaction(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Business.Integrations.Payments.Gateways.Merchant.PayoutTransactionData)",
+    "MerchantBalanceTransaction SampleComponent.AddPayoutTransaction(MerchantIntegration merchantIntegration, PayoutTransactionData payoutData)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddBalanceTopUpTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, string description, string gatewayId)",
+    "IMerchantBalanceTransactionComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business.Contracts\\Integrations\\Payments\\Gateways\\Merchant\\IMerchantBalanceTransactionComponent.cs",
+    "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.AddChargeTransactions(IClient client, IReadOnlyList<Payment> payments)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddCommissionAdjustmentTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, Payment payment, string gatewayId = null)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddMerchantCommissionTransaction(IClient client, Payment payment, Amount amount, Guid? payoutTransactionId = null, string gatewayId = null, string description = null)",
+    "IEnumerable<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.AddPayoutTransactions(IClient client, MerchantIntegration merchantIntegration, IEnumerable<PayoutTransactionData> payouts)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.AddPlatformFeeTransaction(IClient client, MerchantIntegration merchantIntegration, Amount amount, string description, string gatewayId)",
+    "void IMerchantBalanceTransactionComponent.Add_DoNotUse(IClient client, IReadOnlyList<MerchantBalanceTransaction> transactions)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.CreatePayoutTransaction(IClient client, MerchantIntegration merchantIntegration, PayoutTransactionData data)",
+    "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.Get(MerchantBalanceTransactionFilters filters)",
+    "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetAll_DoNotUse(bool onlyActive = true)",
+    "Task<IReadOnlyList<MerchantBalanceTransaction>> IMerchantBalanceTransactionComponent.GetAsync(MerchantBalanceTransactionFilters filters, CancellationToken cancellationToken)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.GetById_DoNotUse(Guid? id, bool onlyActive = true)",
+    "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetByIds_DoNotUse(IEnumerable<Guid> ids, bool onlyActive = true)",
+    "int IMerchantBalanceTransactionComponent.GetCount(MerchantBalanceTransactionFilters filters)",
+    "Task<Option<MerchantBalanceTransaction>> IMerchantBalanceTransactionComponent.GetLastPayoutWithBankAccountAsync(MerchantIntegration integration, CancellationToken cancellationToken)",
+    "string IMerchantBalanceTransactionComponent.GetPayoutReportingIdentifier(Guid existingGuid)",
+    "Task<IReadOnlyList<PayoutSummary>> IMerchantBalanceTransactionComponent.GetPayoutSummariesAsync(Enterprise enterprise, CancellationToken cancellationToken, DateTimeInterval createdUtc = null)",
+    "IReadOnlyList<MerchantBalanceTransaction> IMerchantBalanceTransactionComponent.GetRelatedTransactions(MerchantBalanceTransaction transaction)",
+    "void IMerchantBalanceTransactionComponent.HardDelete(IClient client, IReadOnlyList<MerchantBalanceTransaction> transactions)",
+    "void IMerchantBalanceTransactionComponent.LoadMerchantIntegrations(IEnumerable<MerchantBalanceTransaction> transactions)",
+    "void IMerchantBalanceTransactionComponent.LoadPayments(IEnumerable<MerchantBalanceTransaction> transactions)",
+    "void IMerchantBalanceTransactionComponent.LoadPayoutChildTransactions(IEnumerable<MerchantBalanceTransaction> transactions)",
+    "void IMerchantBalanceTransactionComponent.LoadPayoutTransactions(IEnumerable<MerchantBalanceTransaction> transactions)",
+    "object IMerchantBalanceTransactionComponent.ToDebugDetails(MerchantBalanceTransaction transaction)",
+    "void IMerchantBalanceTransactionComponent.Update(IClient client, IReadOnlyList<MerchantBalanceTransactionUpdate> updates)",
+    "void IMerchantBalanceTransactionComponent.UpdateAmount(IClient client, MerchantBalanceTransaction transaction, Amount newAmount)",
+    "void IMerchantBalanceTransactionComponent.UpdatePayoutGrossAndCommission(AmountSpace amounts, MerchantBalanceTransaction payout, IReadOnlyList<MerchantBalanceTransaction> payoutTransactions = null)",
+    "MerchantBalanceTransaction IMerchantBalanceTransactionComponent.UpdatePayoutTransaction(MerchantBalanceTransaction payoutTransaction, PayoutTransactionData data)",
+    "void IMerchantBalanceTransactionComponent.Update_DoNotUse(IClient client, IReadOnlyList<MerchantBalanceTransaction> updates)",
+    "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.AlternativePaymentComponent.UpdateState(Mews.Components.Clients.IClient, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.AlternativePayment>, Mews.Entities.Finance.Payments.PaymentState, Mews.Business.Finance.Payments.StateUpdateData)",
+    "StateUpdateResult AlternativePaymentComponent.UpdateState(IClient client, IReadOnlyList<AlternativePayment> payments, PaymentState state, StateUpdateData updateData = null)",
+    "AlternativePaymentComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Finance\\Payments\\AlternativePaymentComponent.cs",
+    "Mews.PaymentProcessing.Business:Mews.Business.Finance.Payments.CreditCardPaymentComponent.AddChargeBalanceTransactionsForCreditCardPayment(Mews.Entities.Finance.Payments.CreditCardPayment)",
+    "void CreditCardPaymentComponent.AddChargeBalanceTransactionsForCreditCardPayment(CreditCardPayment payment)",
+    "CreditCardPaymentComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Finance\\Payments\\CreditCardPaymentComponent.cs",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Adyen.AdyenMarketPayPayoutComponent.ProcessPayout(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.PaymentProcessing.Integrations.Communication.Adyen.Dto.MarketPay.AdyenPayout, bool)",
+    "void AdyenMarketPayPayoutComponent.ProcessPayout(PaymentGatewayClient client, AdyenPayout adyenPayout, bool balancePayoutNewGatewayIdEnabled = false)",
+    "AdyenMarketPayPayoutComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Adyen\\AdyenMarketPayPayoutComponent.cs",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayPal.PayPalComponent.CreateBalanceTransactionForCrossBorderAndFxFees(Mews.Components.Clients.IClient, System.Collections.Generic.IEnumerable<Mews.Components.Integrations.Payments.Gateways.PayPal.IPayPalComponent.PayPalPaymentWithFeesAndSettledUtc>)",
+    "void PayPalComponent.CreateBalanceTransactionForCrossBorderAndFxFees(IClient client, IEnumerable<PayPalPaymentWithFeesAndSettledUtc> paymentsWithFees)",
+    "PayPalComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayPal\\PayPalComponent.cs",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.AddNewPayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, string, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.PaymentProcessing.Integrations.Communication.Stripe.Dto.PayoutMethod, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+    "Try<Unit, PaymentGatewayNotificationError> PayoutBalanceUpdater.AddNewPayoutBalanceTransaction(PaymentGatewayClient client, string id, MerchantIntegration merchantIntegration, Amount amount, PayoutMetadataParameters metadataParameters = null, PayoutMethod payoutMethod = PayoutMethod.Standard, PayoutProcessingType? payoutProcessingType = null)",
+    "PayoutBalanceUpdater",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\PayoutBalanceUpdater.cs",
+    "protected",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.GetPayoutTransactions(Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, string)",
+    "IReadOnlyList<MerchantBalanceTransaction> PayoutBalanceUpdater.GetPayoutTransactions(MerchantIntegration merchantIntegration, string payoutId)",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.PayoutBalanceUpdater.UpdateMerchantBalanceTransaction(string, Mews.Entities.Finance.Balances.MerchantBalanceTransaction, Mews.Entities.Globalization.Currencies.Amount, Mews.Business.Finance.Balances.PayoutMetadataParameters, Mews.Entities.Finance.Balances.PayoutProcessingType?)",
+    "Try<Unit, PaymentGatewayNotificationError> PayoutBalanceUpdater.UpdateMerchantBalanceTransaction(string payoutId, MerchantBalanceTransaction transaction, Amount amount, PayoutMetadataParameters metadataParameters = null, PayoutProcessingType? payoutProcessingType = null)",
+    "Mews.PaymentProcessing.Business:Mews.Integrations.Payments.Gateways.Stripe.StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(Mews.Components.Clients.Applications.PaymentGatewayClient, Mews.Entities.Integrations.Payments.Gateways.Merchant.MerchantIntegration, System.Collections.Generic.IReadOnlyList<Mews.Entities.Finance.Payments.Payment>, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>, Mews.Integrations.Payments.Gateways.Stripe.Payouts.StripePayoutChunk, System.Collections.Generic.IReadOnlyList<Mews.Integrations.Payments.Gateways.Stripe.Payouts.PayoutTransaction>)",
+    "Option<MerchantBalanceTransaction> StripePayoutBalanceUpdater.UpdatePayoutBalanceTransaction(PaymentGatewayClient client, MerchantIntegration integration, IReadOnlyList<Payment> unsettledPayments, IReadOnlyList<PayoutTransaction> transactionData, StripePayoutChunk stripePayoutChunk, IReadOnlyList<PayoutTransaction> payoutTransactionData)",
+    "StripePayoutBalanceUpdater",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Stripe\\StripePayoutBalanceUpdater.cs",
+    "Mews.PaymentProcessing.Business:Mews.PaymentProcessing.Business.Integrations.Gateways.Adyen.Reconciliation.PaymentAccountingReportReconciliationComponent.ReconcilePayments(string)",
+    "void PaymentAccountingReportReconciliationComponent.ReconcilePayments(string data)",
+    "PaymentAccountingReportReconciliationComponent",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Business\\Integrations\\Gateways\\Adyen\\Reconciliation\\PaymentAccountingReportReconciliationComponent.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.BalanceTopUpCreatedData, System.Threading.CancellationToken)",
+    "Task BalanceTopUpCreatedFintechLedgerEventHandler.HandleInternalAsync(TransactionContext context, BalanceTopUpCreatedData data, CancellationToken cancellationToken)",
+    "BalanceTopUpCreatedFintechLedgerEventHandler",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PaymentProcessingEventHandlers\\BalanceTopUpCreatedFintechLedgerEventHandler.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PaymentProcessingEventHandlers.PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(Mews.Server.Transactions.TransactionContext, Mews.PaymentProcessing.Business.Events.PlatformFeeMerchantTransactionCompletedData, System.Threading.CancellationToken)",
+    "Task PlatformFeeChargedFintechLedgerEventHandler.HandleInternalAsync(TransactionContext context, PlatformFeeMerchantTransactionCompletedData data, CancellationToken cancellationToken)",
+    "PlatformFeeChargedFintechLedgerEventHandler",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PaymentProcessingEventHandlers\\PlatformFeeChargedFintechLedgerEventHandler.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.PayoutMetadataFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.PayoutMetadataFixerData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> PayoutMetadataFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, PayoutMetadataFixerData data, CancellationToken cancellationToken)",
+    "PayoutMetadataFixer",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\PayoutMetadataFixer.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreator.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.StripePlatformFeeTransactionCreatorJobData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> StripePlatformFeeTransactionCreator.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, StripePlatformFeeTransactionCreatorJobData data, CancellationToken cancellationToken)",
+    "StripePlatformFeeTransactionCreator",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\StripePlatformFeeTransactionCreator.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.PaymentProcessing.Jobs.Temporary.MissingBalanceTransactionFixerData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> MissingBalanceTransactionFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, MissingBalanceTransactionFixerData data, CancellationToken cancellationToken)",
+    "MissingBalanceTransactionFixer",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\MissingBalanceTransactionFixer.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.AbsoluteCommissionFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.AbsoluteCommissionFixerData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> AbsoluteCommissionFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, AbsoluteCommissionFixerData data, CancellationToken cancellationToken)",
+    "AbsoluteCommissionFixer",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\AbsoluteCommissionFixer.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionDeleter.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.DuplicateBalanceTransactionData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> DuplicateBalanceTransactionDeleter.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, DuplicateBalanceTransactionData data, CancellationToken cancellationToken)",
+    "DuplicateBalanceTransactionDeleter",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\DuplicateBalanceTransactionDeleter.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.MultiCurrencyBalanceTransactionGatewayAccountIdFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.MulticurrencyBalanceTransactionGatewayAccountIdFixerData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> MultiCurrencyBalanceTransactionGatewayAccountIdFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, MulticurrencyBalanceTransactionGatewayAccountIdFixerData data, CancellationToken cancellationToken)",
+    "MultiCurrencyBalanceTransactionGatewayAccountIdFixer",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\MultiCurrencyBalanceTransactionGatewayAccountIdFixer.cs",
+    "Mews.PaymentProcessing.Jobs:Mews.Server.Jobs.Temporary.StripeMoRRefundFixer.ExecuteAsync(Mews.Server.Transactions.TransactionContext, Mews.Business.Internals.Jobs.Executors.JobExecutionContext, Mews.Server.Jobs.Temporary.StripeMoRRefundFixerData, System.Threading.CancellationToken)",
+    "Task<JobExecutionResult> StripeMoRRefundFixer.ExecuteAsync(TransactionContext context, JobExecutionContext executionContext, StripeMoRRefundFixerData data, CancellationToken cancellationToken)",
+    "StripeMoRRefundFixer",
+    "D:\\dev\\mews\\src\\Modules\\PaymentProcessing\\Mews.PaymentProcessing.Jobs\\Temporary\\StripeMoRRefundFixer.cs",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.ExportPayoutDetailAsync()",
+    "Task<ActionResult<Unit>> PayoutsCommanderApiController.ExportPayoutDetailAsync()",
+    "PayoutsCommanderApiController",
+    "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Commander\\V1\\CommanderApiPayouts.cs",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutTransactionsAsync()",
+    "Task<ActionResult<PagedResult<IEnumerable<PayoutDetailResult>>>> PayoutsCommanderApiController.GetAllPayoutTransactionsAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetAllPayoutsAsync()",
+    "Task<ActionResult<PagedResult<IEnumerable<Payout>>>> PayoutsCommanderApiController.GetAllPayoutsAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetInstantPayoutPaymentsAsync()",
+    "Task<ActionResult<InstantPayoutPaymentsResult>> PayoutsCommanderApiController.GetInstantPayoutPaymentsAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetOpenPayoutsAsync()",
+    "Task<ActionResult<OpenPayoutResult>> PayoutsCommanderApiController.GetOpenPayoutsAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+    "Task<ActionResult<PayoutDetailSummary>> PayoutsCommanderApiController.GetPayoutDetailSummariesAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Commander.V1.PayoutsCommanderApiController.GetPayoutSummariesAsync()",
+    "Task<ActionResult<PayoutSummaryResult>> PayoutsCommanderApiController.GetPayoutSummariesAsync()",
+    "Mews.Server.Web:Mews.Server.Web.Api.Connector.V1.Controllers.Internal.CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+    "Task<ActionResult<MewsPaymentTransactionsResult>> CeniumConnectorApiController.GetAllMewsPaymentTransactionsAsync()",
+    "CeniumConnectorApiController",
+    "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Api\\Connector\\V1\\Controllers\\Internal\\CeniumConnectorApiController.cs",
+    "Mews.Server.Web:Mews.Server.Web.Controllers.Commander.MerchantBalanceTransactionController.Detail(System.Guid)",
+    "Task<ActionResult> MerchantBalanceTransactionController.Detail(Guid id)",
+    "MerchantBalanceTransactionController",
+    "D:\\dev\\mews\\src\\Hosts\\Mews.Server.Web\\Controllers\\Commander\\Finance\\MerchantBalanceTransactionController.cs",
+    "inbound",
+    "calls"
+  ],
+  "t": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28
+  ],
+  "n": [
+    [
+      29,
+      30,
+      31,
+      32,
+      33,
+      3505,
+      34
+    ],
+    [
+      35,
+      30,
+      36,
+      32,
+      33,
+      3494,
+      34
+    ],
+    [
+      0,
+      30,
+      37,
+      38,
+      39,
+      39,
+      34
+    ],
+    [
+      1,
+      30,
+      40,
+      38,
+      39,
+      41,
+      34
+    ],
+    [
+      2,
+      30,
+      41,
+      38,
+      39,
+      43,
+      34
+    ],
+    [
+      3,
+      30,
+      42,
+      38,
+      39,
+      45,
+      34
+    ],
+    [
+      4,
+      30,
+      43,
+      38,
+      39,
+      47,
+      34
+    ],
+    [
+      5,
+      30,
+      44,
+      38,
+      39,
+      49,
+      34
+    ],
+    [
+      6,
+      30,
+      45,
+      38,
+      39,
+      37,
+      34
+    ],
+    [
+      7,
+      30,
+      46,
+      38,
+      39,
+      29,
+      34
+    ],
+    [
+      8,
+      30,
+      47,
+      38,
+      39,
+      15,
+      34
+    ],
+    [
+      9,
+      30,
+      48,
+      38,
+      39,
+      17,
+      34
+    ],
+    [
+      10,
+      30,
+      49,
+      38,
+      39,
+      19,
+      34
+    ],
+    [
+      11,
+      30,
+      50,
+      38,
+      39,
+      21,
+      34
+    ],
+    [
+      12,
+      30,
+      51,
+      38,
+      39,
+      23,
+      34
+    ],
+    [
+      13,
+      30,
+      52,
+      38,
+      39,
+      27,
+      34
+    ],
+    [
+      14,
+      30,
+      53,
+      38,
+      39,
+      71,
+      34
+    ],
+    [
+      15,
+      30,
+      54,
+      38,
+      39,
+      53,
+      34
+    ],
+    [
+      16,
+      30,
+      55,
+      38,
+      39,
+      51,
+      34
+    ],
+    [
+      17,
+      30,
+      56,
+      38,
+      39,
+      25,
+      34
+    ],
+    [
+      18,
+      30,
+      57,
+      38,
+      39,
+      67,
+      34
+    ],
+    [
+      19,
+      30,
+      58,
+      38,
+      39,
+      59,
+      34
+    ],
+    [
+      20,
+      30,
+      59,
+      38,
+      39,
+      61,
+      34
+    ],
+    [
+      21,
+      30,
+      60,
+      38,
+      39,
+      65,
+      34
+    ],
+    [
+      22,
+      30,
+      61,
+      38,
+      39,
+      63,
+      34
+    ],
+    [
+      23,
+      30,
+      62,
+      38,
+      39,
+      69,
+      34
+    ],
+    [
+      24,
+      30,
+      63,
+      38,
+      39,
+      31,
+      34
+    ],
+    [
+      25,
+      30,
+      64,
+      38,
+      39,
+      33,
+      34
+    ],
+    [
+      26,
+      30,
+      65,
+      38,
+      39,
+      55,
+      34
+    ],
+    [
+      27,
+      30,
+      66,
+      38,
+      39,
+      57,
+      34
+    ],
+    [
+      28,
+      30,
+      67,
+      38,
+      39,
+      35,
+      34
+    ],
+    [
+      68,
+      30,
+      69,
+      70,
+      71,
+      268,
+      34
+    ],
+    [
+      72,
+      30,
+      73,
+      74,
+      75,
+      891,
+      34
+    ],
+    [
+      76,
+      30,
+      77,
+      78,
+      79,
+      50,
+      34
+    ],
+    [
+      80,
+      30,
+      81,
+      82,
+      83,
+      235,
+      34
+    ],
+    [
+      84,
+      30,
+      85,
+      86,
+      87,
+      66,
+      88
+    ],
+    [
+      89,
+      30,
+      90,
+      86,
+      87,
+      27,
+      88
+    ],
+    [
+      91,
+      30,
+      92,
+      86,
+      87,
+      88,
+      88
+    ],
+    [
+      93,
+      30,
+      94,
+      95,
+      96,
+      29,
+      34
+    ],
+    [
+      97,
+      30,
+      98,
+      99,
+      100,
+      23,
+      34
+    ],
+    [
+      101,
+      30,
+      102,
+      103,
+      104,
+      21,
+      88
+    ],
+    [
+      105,
+      30,
+      106,
+      107,
+      108,
+      24,
+      88
+    ],
+    [
+      109,
+      30,
+      110,
+      111,
+      112,
+      21,
+      88
+    ],
+    [
+      113,
+      30,
+      114,
+      115,
+      116,
+      25,
+      88
+    ],
+    [
+      117,
+      30,
+      118,
+      119,
+      120,
+      21,
+      88
+    ],
+    [
+      121,
+      30,
+      122,
+      123,
+      124,
+      27,
+      88
+    ],
+    [
+      125,
+      30,
+      126,
+      127,
+      128,
+      28,
+      88
+    ],
+    [
+      129,
+      30,
+      130,
+      131,
+      132,
+      26,
+      88
+    ],
+    [
+      133,
+      30,
+      134,
+      135,
+      136,
+      19,
+      88
+    ],
+    [
+      137,
+      30,
+      138,
+      139,
+      140,
+      396,
+      34
+    ],
+    [
+      141,
+      30,
+      142,
+      139,
+      140,
+      368,
+      34
+    ],
+    [
+      143,
+      30,
+      144,
+      139,
+      140,
+      168,
+      34
+    ],
+    [
+      145,
+      30,
+      146,
+      139,
+      140,
+      112,
+      34
+    ],
+    [
+      147,
+      30,
+      148,
+      139,
+      140,
+      244,
+      34
+    ],
+    [
+      149,
+      30,
+      150,
+      139,
+      140,
+      322,
+      34
+    ],
+    [
+      151,
+      30,
+      152,
+      139,
+      140,
+      302,
+      34
+    ],
+    [
+      153,
+      30,
+      154,
+      155,
+      156,
+      20,
+      34
+    ],
+    [
+      157,
+      30,
+      158,
+      159,
+      160,
+      33,
+      34
+    ]
+  ],
+  "e": [
+    [
+      29,
+      2,
+      161,
+      162
+    ],
+    [
+      35,
+      4,
+      161,
+      162
+    ],
+    [
+      68,
+      1,
+      161,
+      162
+    ],
+    [
+      72,
+      1,
+      161,
+      162
+    ],
+    [
+      76,
+      17,
+      161,
+      162
+    ],
+    [
+      80,
+      3,
+      161,
+      162
+    ],
+    [
+      84,
+      4,
+      161,
+      162
+    ],
+    [
+      89,
+      8,
+      161,
+      162
+    ],
+    [
+      91,
+      23,
+      161,
+      162
+    ],
+    [
+      93,
+      21,
+      161,
+      162
+    ],
+    [
+      93,
+      24,
+      161,
+      162
+    ],
+    [
+      93,
+      26,
+      161,
+      162
+    ],
+    [
+      97,
+      8,
+      161,
+      162
+    ],
+    [
+      101,
+      10,
+      161,
+      162
+    ],
+    [
+      101,
+      19,
+      161,
+      162
+    ],
+    [
+      105,
+      10,
+      161,
+      162
+    ],
+    [
+      105,
+      19,
+      161,
+      162
+    ],
+    [
+      109,
+      10,
+      161,
+      162
+    ],
+    [
+      109,
+      19,
+      161,
+      162
+    ],
+    [
+      109,
+      22,
+      161,
+      162
+    ],
+    [
+      109,
+      26,
+      161,
+      162
+    ],
+    [
+      113,
+      5,
+      161,
+      162
+    ],
+    [
+      117,
+      1,
+      161,
+      162
+    ],
+    [
+      117,
+      8,
+      161,
+      162
+    ],
+    [
+      117,
+      21,
+      161,
+      162
+    ],
+    [
+      117,
+      23,
+      161,
+      162
+    ],
+    [
+      117,
+      24,
+      161,
+      162
+    ],
+    [
+      117,
+      26,
+      161,
+      162
+    ],
+    [
+      121,
+      12,
+      161,
+      162
+    ],
+    [
+      121,
+      20,
+      161,
+      162
+    ],
+    [
+      125,
+      12,
+      161,
+      162
+    ],
+    [
+      125,
+      18,
+      161,
+      162
+    ],
+    [
+      125,
+      19,
+      161,
+      162
+    ],
+    [
+      129,
+      10,
+      161,
+      162
+    ],
+    [
+      133,
+      1,
+      161,
+      162
+    ],
+    [
+      137,
+      10,
+      161,
+      162
+    ],
+    [
+      141,
+      10,
+      161,
+      162
+    ],
+    [
+      143,
+      8,
+      161,
+      162
+    ],
+    [
+      143,
+      13,
+      161,
+      162
+    ],
+    [
+      143,
+      19,
+      161,
+      162
+    ],
+    [
+      145,
+      14,
+      161,
+      162
+    ],
+    [
+      147,
+      10,
+      161,
+      162
+    ],
+    [
+      149,
+      10,
+      161,
+      162
+    ],
+    [
+      149,
+      19,
+      161,
+      162
+    ],
+    [
+      151,
+      16,
+      161,
+      162
+    ],
+    [
+      153,
+      10,
+      161,
+      162
+    ],
+    [
+      153,
+      22,
+      161,
+      162
+    ],
+    [
+      157,
+      17,
+      161,
+      162
+    ],
+    [
+      157,
+      20,
+      161,
+      162
+    ]
+  ]
+}

@@ -1,0 +1,14 @@
+[interface]
+display_name = "C# Analyze Call Graph"
+short_description = "Analyze a C# file/method via CallGraph CLI and summarize calls."
+brand_color = "#6366F1"
+
+default_prompt = """
+Analyze a C# file (and optional method) using CallGraph CLI command `callgraph analyze`.
+- default depth=1 when depth is omitted
+- visibility=external (default): class-based depth, good for component analysis
+- visibility=internal: method-based depth, good for detailed tracing
+Both modes traverse all edges including private methods. Summarize nodes/edges and key inbound/outbound calls.
+Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
+
+"""
