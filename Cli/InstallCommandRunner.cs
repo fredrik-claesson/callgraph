@@ -6,6 +6,7 @@ namespace CallGraph;
 internal static class InstallCommandRunner
 {
     private static readonly string[] AssetDirectories = ["_claude", "_codex", "_cursor"];
+    private static readonly string[] SectionTemplateNames = ["AGENTS.md", "CLAUDE.md"];
 
     public static async Task<ToolExecutionResult> RunAsync(ToolCommand tool, CancellationToken cancellationToken)
     {
@@ -45,8 +46,16 @@ internal static class InstallCommandRunner
                     ? $".{sourceName[1..]}"
                     : sourceName;
                 var targetPath = Path.Combine(homeDir, targetRootName);
+
+                if (!Directory.Exists(targetPath))
+                {
+                    messages.Add($"Skipped {sourceName}: target directory does not exist ({targetPath}).");
+                    continue;
+                }
+
                 CopyDirectory(sourcePath, targetPath);
                 messages.Add($"Deployed {sourceName} -> {targetPath}");
+                messages.AddRange(GetManualSectionInstructions(sourcePath, targetPath));
             }
         }
 
@@ -296,6 +305,9 @@ internal static class InstallCommandRunner
             if (string.Equals(Path.GetFileName(sourceFile), ".DS_Store", StringComparison.Ordinal))
                 continue;
 
+            if (SectionTemplateNames.Any(name => string.Equals(Path.GetFileName(sourceFile), name, StringComparison.Ordinal)))
+                continue;
+
             var relative = Path.GetRelativePath(source, sourceFile);
             var destinationFile = Path.Combine(target, relative);
             var destinationDir = Path.GetDirectoryName(destinationFile);
@@ -335,6 +347,54 @@ internal static class InstallCommandRunner
         catch
         {
             // Best effort only.
+        }
+    }
+
+    private static IEnumerable<string> GetManualSectionInstructions(string sourceRoot, string targetRoot)
+    {
+        var messages = new List<string>();
+
+        foreach (var templatePath in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            var fileName = Path.GetFileName(templatePath);
+            if (!SectionTemplateNames.Any(name => string.Equals(name, fileName, StringComparison.Ordinal)))
+                continue;
+
+            var relative = Path.GetRelativePath(sourceRoot, templatePath);
+            var targetPath = Path.Combine(targetRoot, relative);
+
+            if (!File.Exists(targetPath))
+            {
+                messages.Add($"Manual step: create {targetPath} from template {templatePath}.");
+                continue;
+            }
+
+            if (TemplateContentAlreadyPresent(templatePath, targetPath))
+            {
+                messages.Add($"Info: {targetPath} already contains template section from {templatePath}.");
+                continue;
+            }
+
+            messages.Add($"Manual step: append relevant section from {templatePath} into existing {targetPath}.");
+        }
+
+        return messages;
+    }
+
+    private static bool TemplateContentAlreadyPresent(string templatePath, string targetPath)
+    {
+        try
+        {
+            var template = File.ReadAllText(templatePath).Trim();
+            var target = File.ReadAllText(targetPath);
+            if (string.IsNullOrWhiteSpace(template) || string.IsNullOrWhiteSpace(target))
+                return false;
+
+            return target.Contains(template, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
         }
     }
 }

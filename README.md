@@ -38,7 +38,8 @@ On Windows:
 ```
 
 What `install` does:
-- Deploys bundled `_claude`, `_codex`, `_cursor` into `~/.claude`, `~/.codex`, `~/.cursor`.
+- Deploys bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`).
+- Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Installs `callgraph` command shim:
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
   - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
