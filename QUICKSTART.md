@@ -31,6 +31,7 @@ Windows:
 
 Installer behavior:
 - Copies bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist (`~/.claude`, `~/.codex`, `~/.cursor`).
+- Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Never auto-merges `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Installs `callgraph` shim:
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)

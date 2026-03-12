@@ -39,6 +39,7 @@ On Windows:
 
 What `install` does:
 - Deploys bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`).
+- Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Installs `callgraph` command shim:
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
