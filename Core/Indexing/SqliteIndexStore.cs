@@ -1127,10 +1127,17 @@ public sealed class SqliteIndexStore : IIndexStore
                 if (string.IsNullOrEmpty(pattern) || string.IsNullOrEmpty(input))
                     return false;
 
-                return Regex.IsMatch(
-                    input,
-                    pattern,
-                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                try
+                {
+                    return Regex.IsMatch(
+                        input,
+                        pattern,
+                        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
             });
     }
 

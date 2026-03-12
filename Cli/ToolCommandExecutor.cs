@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CallGraph.Contracts;
 using CallGraph.Core.Analysis;
 using CallGraph.Core.Diagnostics;
@@ -100,6 +101,8 @@ internal sealed class ToolCommandExecutor
                 var regex = CliInputHelpers.TryGetBool(tool.Options, "regex", defaultValue: false, out var regexError);
                 if (regexError is not null)
                     return ToolExecutionResult.FromError(regexError);
+                if (regex && !TryValidateRegexPattern(pattern, out var regexValidationError))
+                    return ToolExecutionResult.FromError(regexValidationError!);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -131,6 +134,8 @@ internal sealed class ToolCommandExecutor
                 var regex = CliInputHelpers.TryGetBool(tool.Options, "regex", defaultValue: false, out var regexError);
                 if (regexError is not null)
                     return ToolExecutionResult.FromError(regexError);
+                if (regex && !TryValidateRegexPattern(queryText, out var regexValidationError))
+                    return ToolExecutionResult.FromError(regexValidationError!);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -583,6 +588,23 @@ internal sealed class ToolCommandExecutor
             return "filePath must point to a .cs file.";
 
         return null;
+    }
+
+    private static bool TryValidateRegexPattern(string pattern, out string? error)
+    {
+        error = null;
+
+        try
+        {
+            _ = Regex.IsMatch(string.Empty, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            error =
+                $"Invalid regex pattern '{pattern}': {ex.Message}. If you intended wildcard matching, remove --regex and use '*' or '?' instead.";
+            return false;
+        }
     }
 
     private sealed record WarningDiagnosticsCacheEntry(

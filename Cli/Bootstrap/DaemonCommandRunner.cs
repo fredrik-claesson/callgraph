@@ -355,7 +355,16 @@ internal static class DaemonCommandRunner
                 request.Options is null
                     ? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string?>(request.Options, StringComparer.OrdinalIgnoreCase));
-            var result = await executor.ExecuteAsync(tool, cancellationToken).ConfigureAwait(false);
+            ToolExecutionResult result;
+            try
+            {
+                result = await executor.ExecuteAsync(tool, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                result = ToolExecutionResult.FromError($"Tool execution failed: {ex.Message}");
+            }
+
             var response = new DaemonResponse(result.ExitCode, result.Stdout, result.Stderr);
             await writer.WriteLineAsync(JsonSerializer.Serialize(response, JsonTransportOptions)).ConfigureAwait(false);
         }
