@@ -132,6 +132,62 @@ public sealed class HybridMethodSearchServiceTests
         Assert.Equal(1, store.RegexSearchCalls);
     }
 
+    [Fact]
+    public async Task SearchAsync_SemanticFinalPhase_FiltersLowScoringTailAggressively()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Company.Security.Authentication.AuthenticationComponent.LoginPrimary()",
+                containingType: "Company.Security.Authentication.AuthenticationComponent",
+                display: "AuthenticationComponent.LoginPrimary()"),
+            CreateMatch(
+                methodId: "Asm:Company.Security.Authentication.AuthenticationComponent.LoginSecondary()",
+                containingType: "Company.Security.Authentication.AuthenticationComponent",
+                display: "AuthenticationComponent.LoginSecondary()"),
+            CreateMatch(
+                methodId: "Asm:Company.Security.Authentication.AuthenticationComponent.LoginFallback()",
+                containingType: "Company.Security.Authentication.AuthenticationComponent",
+                display: "AuthenticationComponent.LoginFallback()"),
+            CreateMatch(
+                methodId: "Asm:Company.Security.Authentication.AuthenticationComponent.LoginLegacy()",
+                containingType: "Company.Security.Authentication.AuthenticationComponent",
+                display: "AuthenticationComponent.LoginLegacy()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new MarkerSemanticEmbedder(new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["LoginPrimary"] = 0.9f,
+                ["LoginSecondary"] = 0.6f,
+                ["LoginFallback"] = 0.0f,
+                ["LoginLegacy"] = -0.6f
+            }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 1,
+                EnableSemanticRerank = true
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "login",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(methods[0].Method.Id, result[0].Method.Id);
+        Assert.Equal(methods[1].Method.Id, result[1].Method.Id);
+    }
+
     private static SearchMethodMatch CreateMatch(string methodId, string containingType, string display)
         => new(
             "solution-1",
@@ -196,6 +252,42 @@ public sealed class HybridMethodSearchServiceTests
             var scores = candidateTexts
                 .Select(text => text.Contains(_highScoreMarker, StringComparison.OrdinalIgnoreCase) ? _highScore : _lowScore)
                 .ToList();
+
+            return Task.FromResult<IReadOnlyList<float>>(scores);
+        }
+    }
+
+    private sealed class MarkerSemanticEmbedder : ISemanticEmbedder
+    {
+        private readonly IReadOnlyDictionary<string, float> _scoresByMarker;
+
+        public MarkerSemanticEmbedder(IReadOnlyDictionary<string, float> scoresByMarker)
+        {
+            _scoresByMarker = scoresByMarker;
+        }
+
+        public bool IsAvailable => true;
+
+        public Task<IReadOnlyList<float>> ScoreAsync(
+            string queryText,
+            IReadOnlyList<string> candidateTexts,
+            CancellationToken cancellationToken)
+        {
+            var scores = new List<float>(candidateTexts.Count);
+            foreach (var text in candidateTexts)
+            {
+                var score = 0f;
+                foreach (var (marker, value) in _scoresByMarker)
+                {
+                    if (!text.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    score = value;
+                    break;
+                }
+
+                scores.Add(score);
+            }
 
             return Task.FromResult<IReadOnlyList<float>>(scores);
         }

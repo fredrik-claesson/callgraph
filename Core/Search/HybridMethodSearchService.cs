@@ -241,9 +241,9 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
         if (best <= 0)
             return ranked;
 
-        var cutoff = Math.Max(0.35d, best * 0.70d);
+        var cutoff = Math.Max(0.45d, best * 0.80d);
         var filtered = ranked.Where(m => m.CombinedScore >= cutoff).ToList();
-        return filtered.Count >= 5 ? filtered : ranked;
+        return filtered.Count > 0 ? filtered : ranked.Take(1).ToList();
     }
 
     private List<string> BuildCandidatePatterns(MethodQuery query)
