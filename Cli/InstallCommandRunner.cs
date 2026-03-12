@@ -386,7 +386,9 @@ internal static class InstallCommandRunner
             }
             catch (Exception ex)
             {
-                messages.Add($"Warning: failed to remove duplicate symlink {candidate}: {ex.Message}");
+                messages.Add(
+                    $"Warning: failed to remove duplicate symlink {candidate}: {ex.Message}. " +
+                    $"Manually run: sudo rm {candidate}");
             }
         }
 
