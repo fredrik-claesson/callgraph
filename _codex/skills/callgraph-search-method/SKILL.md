@@ -12,6 +12,8 @@ Queries a prebuilt analyzer index - much faster than scanning with `rg`/`grep` o
 Use CLI command: `callgraph search-method`
 - MUST run `callgraph search-method` in the foreground (blocking call). Do not start background terminals for this command.
 - If a background terminal is started accidentally, stop it and rerun in foreground immediately.
+- Always append `2>&1` to command execution.
+- Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## Search behavior
 - Non-regex search is hybrid:
@@ -42,7 +44,9 @@ Choose mode by prompt type:
 ## Hard rule (Codex CLI)
 - For this skill, execute exactly one foreground command at a time and wait for completion before any next step.
 - Required command shape:
-  `callgraph search-method ...`
+  `callgraph search-method ... 2>&1`
+- Retry command shape (only when needed):
+  `callgraph search-method ... --no-daemon 2>&1`
 
 ## CLI Examples
 ```bash
@@ -86,7 +90,8 @@ callgraph search-method --keywords "login authentication" --solutionId "solution
   - Expected first command: `callgraph search-method --keywords "adyen interchange fee calculation"`
 
 ## Output format note
-- `search-method` now returns streamlined JSON records directly.
+- `search-method` returns plain text, one match per line:
+  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
 - Forbidden:
   - `python3 << 'EOF' ...`
   - custom one-off JSON parser scripts

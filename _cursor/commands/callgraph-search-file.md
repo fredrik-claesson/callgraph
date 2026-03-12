@@ -2,6 +2,10 @@
 
 Find C# files by path using the CallGraph index (fast) via CLI.
 
+## Command execution policy
+- Run commands in foreground only and always append `2>&1`.
+- Use daemon mode first for latency, then retry with `--no-daemon` only on timeout/error/inconsistent output.
+
 ## Prereqs
 - CallGraph CLI is available (`callgraph` binary or `dotnet run --project CallGraph.csproj --`)
 
@@ -27,4 +31,4 @@ Run CLI:
 - If too many: suggest narrowing pattern or adding --solutionPath
 
 ## Output format note
-- `search-file` now returns streamlined JSON records directly.
+- `search-file` returns plain text with one file path per line.

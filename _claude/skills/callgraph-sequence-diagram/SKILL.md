@@ -7,6 +7,10 @@ agent: callgraph-haiku
 
 # C# Sequence Diagram (Mermaid)
 
+## Command execution policy
+- Run commands in foreground only and always append `2>&1`.
+- Use daemon mode first for latency, then retry with `--no-daemon` only on timeout/error/inconsistent output.
+
 ## Parameters
 - filepath (required)
 - method (optional, case-sensitive)

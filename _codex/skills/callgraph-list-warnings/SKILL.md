@@ -10,6 +10,8 @@ Queries a prebuilt analyzer index to surface compiler warnings, code quality iss
 
 ## Tool
 Use CLI command: `callgraph list-warnings`
+- Run in foreground and always append `2>&1`.
+- Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## CLI Example
 ```bash

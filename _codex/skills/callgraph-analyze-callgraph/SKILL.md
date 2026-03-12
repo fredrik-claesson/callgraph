@@ -11,6 +11,8 @@ Use the CallGraph analyzer index instead of scanning source code. It is fast and
 ## Tool
 Use CLI command: `callgraph analyze`
 - MUST run in foreground (blocking).
+- Always append `2>&1` to command execution.
+- Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## CLI Example
 ```bash

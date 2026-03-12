@@ -137,7 +137,8 @@ internal sealed class ToolCommandExecutor
                         $"Search returned {matches.Count} results (limit {limit}). Narrow pattern or scope with --folderPath/--filePath.");
                 }
 
-                return ToolExecutionResult.FromPayload(ToolResponseMapper.ToSearchFileResponse(matches), JsonOutputOptions);
+                var response = ToolResponseMapper.ToSearchFileResponse(matches);
+                return ToolExecutionResult.FromText(ToolTextFormatter.FormatSearchFiles(response));
             }
             case "search-method":
             {
@@ -170,7 +171,8 @@ internal sealed class ToolCommandExecutor
                         $"Search returned {matches.Count} results (limit {limit}). Narrow pattern or scope with --folderPath/--filePath.");
                 }
 
-                return ToolExecutionResult.FromPayload(ToolResponseMapper.ToSearchMethodResponse(matches), JsonOutputOptions);
+                var response = ToolResponseMapper.ToSearchMethodResponse(matches);
+                return ToolExecutionResult.FromText(ToolTextFormatter.FormatSearchMethods(response));
             }
             case "list-methods":
             {
@@ -200,7 +202,8 @@ internal sealed class ToolCommandExecutor
                         $"List returned {matches.Count} results (limit {limit}). Narrow scope with --solutionPath/--solutionId and --folderPath/--filePath.");
                 }
 
-                return ToolExecutionResult.FromPayload(ToolResponseMapper.ToSearchMethodResponse(matches), JsonOutputOptions);
+                var response = ToolResponseMapper.ToSearchMethodResponse(matches);
+                return ToolExecutionResult.FromText(ToolTextFormatter.FormatSearchMethods(response));
             }
             case "analyze":
             {
@@ -627,6 +630,9 @@ internal sealed class ToolCommandExecutor
 
 internal sealed record ToolExecutionResult(int ExitCode, string? Stdout, string? Stderr)
 {
+    public static ToolExecutionResult FromText(string? text)
+        => new(0, text, null);
+
     public static ToolExecutionResult FromPayload(object payload, JsonSerializerOptions options)
         => new(0, JsonSerializer.Serialize(payload, options), null);
 

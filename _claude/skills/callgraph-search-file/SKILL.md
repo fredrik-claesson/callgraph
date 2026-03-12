@@ -5,6 +5,10 @@ description: Fast indexed search for C# file paths via CallGraph CLI. Use when a
 
 # C# Search File (Indexed)
 
+## Command execution policy
+- Run commands in foreground only and always append `2>&1`.
+- Use daemon mode first for latency, then retry with `--no-daemon` only on timeout/error/inconsistent output.
+
 ## Inputs
 - pattern (required): wildcard like `*Controller.cs` or `**/Foo*.cs`
 - --regex (optional): treat pattern as regex (default false)
@@ -27,4 +31,4 @@ Run CLI:
 - If too many matches: suggest narrowing pattern or adding --solutionPath
 
 ## Output format note
-- `search-file` now returns streamlined JSON records directly.
+- `search-file` returns plain text with one file path per line.

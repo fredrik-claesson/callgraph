@@ -45,6 +45,9 @@ internal static class CliCommandLine
               - `serve` idle timeout defaults to 600 minutes (10 hours); override with `--idleMinutes`.
               - `serve` watches all indexed solutions by default; disable with `--no-watch-indexed`.
               - Use --no-daemon to run analysis in one-shot mode.
+              - search-file outputs plain text (one file path per line).
+              - search-method/list-methods output plain text rows: <filePath[:line]>\t<containingType>\t<methodName>\t<signature>.
+              - analyze output is structured JSON.
               - list-methods defaults to --visibility external (public/protected/protected internal).
               - list-unused/list-warnings require both --projectPath and --filePath.
               - filePath must be an absolute path to a .cs file.

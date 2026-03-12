@@ -5,6 +5,7 @@ brand_color = "#6366F1"
 
 default_prompt = """
 Analyze a C# file (and optional method) using CallGraph CLI command `callgraph analyze`.
+Execution policy: run foreground command with `2>&1`, use daemon first, retry with `--no-daemon` only on timeout/error/inconsistent output.
 - default depth=1 when depth is omitted
 - visibility=external (default): class-based depth, good for component analysis
 - visibility=internal: method-based depth, good for detailed tracing

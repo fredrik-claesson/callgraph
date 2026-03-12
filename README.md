@@ -101,11 +101,15 @@ Notes:
 - Use `--no-daemon` for one-shot execution or `--require-daemon` to fail if daemon is unavailable.
 - `analyze` defaults to depth `1` when `--depth` is omitted.
 - `analyze` auto-selects the indexed solution when exactly one solution is indexed and no `--solutionPath`/`--solutionId` is provided.
-- `search-file`, `search-method`, and `list-methods` return streamlined JSON records (file path, method name/signature, file, line).
+- `search-file`, `search-method`, and `list-methods` return plain text lines (no JSON).
+- `search-file`: one file path per line.
+- `search-method`/`list-methods`: one match per line as tab-separated fields:
+  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
 - `list-methods` defaults to `--visibility external` (public/protected/protected internal). Use `--visibility internal` to include all methods.
 - `list-unused` and `list-warnings` require both `--projectPath` and `--filePath`.
 - `--filePath` must be absolute and point to a `.cs` file.
 - Diagnostic commands return structured raw JSON with `totalCount`, `returnedCount`, `truncated`, and `diagnostics`.
+- `analyze` returns structured JSON and should be treated as machine-readable output.
 
 ## Hybrid Method Search
 
@@ -123,7 +127,7 @@ Notes:
    - Embed query and candidates with local `bge-small-en-v1.5`.
    - Re-rank by blended lexical + semantic score.
 4. Return:
-   - Return top results (default limit `200`) in streamlined JSON records.
+   - Return top results (default limit `200`) as line-based text output.
 
 Regex searches (`--regex`) keep the previous regex-only search behavior.
 

@@ -65,6 +65,12 @@ callgraph list-unused --projectPath "/abs/path/to/MyProject.csproj" --filePath "
 callgraph list-warnings --projectPath "/abs/path/to/MyProject.csproj" --filePath "/abs/path/to/File.cs"
 ```
 
+Output notes:
+- `search-file`: plain text, one file path per line
+- `search-method` and `list-methods`: plain text rows
+  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`
+- `analyze`: structured JSON
+
 ## Optional daemon control
 
 ```bash

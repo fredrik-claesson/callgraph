@@ -10,6 +10,8 @@ Returns a method inventory from the prebuilt CallGraph index without scanning so
 
 ## Tool
 Use CLI command: `callgraph list-methods`
+- Run in foreground and always append `2>&1`.
+- Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## CLI Example
 ```bash
@@ -33,7 +35,8 @@ callgraph list-methods --visibility external --solutionId "solution-id"
 - If too many: suggest narrowing scope with solution/folder/file options
 
 ## Output format note
-- `list-methods` now returns streamlined JSON records directly.
+- `list-methods` returns plain text, one match per line:
+  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
 
 ## Known issues
 - In some Codex CLI sessions, CallGraph commands may still hang despite foreground execution.

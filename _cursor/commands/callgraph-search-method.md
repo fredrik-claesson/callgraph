@@ -10,6 +10,10 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 - Missing model files automatically degrade to lexical-only ranking.
 
 ## Execution policy
+- Run commands in foreground only and always append `2>&1`.
+- Use daemon mode first: `callgraph search-method ... 2>&1`.
+- Retry with `--no-daemon` only on timeout/error/inconsistent output:
+  `callgraph search-method ... --no-daemon 2>&1`.
 - Identifier-known branch:
   - Step 1: if class is known but file is unknown, resolve file with `search-file --pattern "*<ClassName>.cs"` first.
   - Step 2: run one narrow identifier-first query with `--pattern` (class + method when available).
@@ -63,7 +67,8 @@ Run CLI:
   - Expected first command: `callgraph search-method --keywords "adyen interchange fee calculation"`
 
 ## Output format note
-- `search-method` now returns streamlined JSON records directly.
+- `search-method` returns plain text, one match per line:
+  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
 - Forbidden:
   - `python3 << 'EOF' ...`
   - temporary/custom parser scripts

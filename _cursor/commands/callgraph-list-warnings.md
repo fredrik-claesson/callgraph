@@ -2,6 +2,10 @@
 
 List warning diagnostics for a C# project using CallGraph CLI.
 
+## Command execution policy
+- Run commands in foreground only and always append `2>&1`.
+- Use daemon mode first for latency, then retry with `--no-daemon` only on timeout/error/inconsistent output.
+
 ## Prereqs
 - CallGraph CLI is available (`callgraph` binary or `dotnet run --project CallGraph.csproj --`)
 

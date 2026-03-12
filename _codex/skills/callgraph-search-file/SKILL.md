@@ -11,6 +11,8 @@ Queries a prebuilt analyzer index - much faster than scanning with `rg`/`find` o
 ## Tool
 Use CLI command: `callgraph search-file`
 - MUST run in foreground (blocking).
+- Always append `2>&1` to command execution.
+- Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## CLI Example
 ```bash
@@ -35,7 +37,7 @@ callgraph search-file --pattern "*Controller.cs" --solutionPath "C:\path\to\solu
 - If too many: suggest narrowing pattern or adding --solutionPath
 
 ## Output format note
-- `search-file` now returns streamlined JSON records directly.
+- `search-file` returns plain text with one file path per line.
 
 ## Known issues
 - In some Codex CLI sessions, CallGraph commands may still hang despite foreground execution.

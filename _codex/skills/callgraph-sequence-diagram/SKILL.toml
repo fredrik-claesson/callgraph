@@ -5,6 +5,7 @@ brand_color = "#3B82F6"
 
 default_prompt = """
 Generate a Markdown file with a Mermaid sequence diagram for a C# file (optionally a method) using CallGraph CLI command `callgraph analyze` with default depth=1 when omitted.
+Execution policy: run foreground command with `2>&1`, use daemon first, retry with `--no-daemon` only on timeout/error/inconsistent output.
 Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
 
 """
