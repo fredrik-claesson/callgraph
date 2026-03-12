@@ -34,6 +34,7 @@ Installer behavior:
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Never auto-merges `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Installs `callgraph` shim:
+  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
   - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
 - Updates Windows user `PATH` automatically (new terminals).

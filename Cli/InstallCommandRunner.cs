@@ -196,6 +196,8 @@ internal static class InstallCommandRunner
             messages.Add($"Installed CLI executable copy: {targetPath}");
         }
 
+        messages.AddRange(CleanupDuplicateUnixShims(targetPath));
+
         if (!DirectoryOnPath(binDir))
         {
             messages.Add($"Warning: {binDir} is not on PATH in this shell. Add: export PATH=\"{binDir}:$PATH\"");
@@ -347,6 +349,90 @@ internal static class InstallCommandRunner
         catch
         {
             // Best effort only.
+        }
+    }
+
+    private static IEnumerable<string> CleanupDuplicateUnixShims(string installedShimPath)
+    {
+        var messages = new List<string>();
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(path))
+            return messages;
+
+        var installedFullPath = Path.GetFullPath(installedShimPath);
+        foreach (var entry in path
+                     .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Where(Path.IsPathRooted)
+                     .Distinct(StringComparer.Ordinal))
+        {
+            var candidate = Path.Combine(entry, "callgraph");
+            if (!File.Exists(candidate) && !IsSymbolicLink(candidate))
+                continue;
+
+            var candidateFullPath = Path.GetFullPath(candidate);
+            if (PathsEqual(candidateFullPath, installedFullPath))
+                continue;
+
+            if (!IsSymbolicLink(candidate))
+                continue;
+
+            if (!LooksLikeCallGraphShim(candidate))
+                continue;
+
+            try
+            {
+                File.Delete(candidate);
+                messages.Add($"Removed duplicate callgraph symlink: {candidate}");
+            }
+            catch (Exception ex)
+            {
+                messages.Add($"Warning: failed to remove duplicate symlink {candidate}: {ex.Message}");
+            }
+        }
+
+        return messages;
+    }
+
+    private static bool IsSymbolicLink(string path)
+    {
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                return true;
+        }
+        catch
+        {
+            // Fallback to ResolveLinkTarget below.
+        }
+
+        try
+        {
+            return File.ResolveLinkTarget(path, returnFinalTarget: false) is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool LooksLikeCallGraphShim(string symlinkPath)
+    {
+        try
+        {
+            var resolved = File.ResolveLinkTarget(symlinkPath, returnFinalTarget: true);
+            var resolvedPath = resolved?.FullName ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(resolvedPath))
+                return true;
+
+            var fileName = Path.GetFileNameWithoutExtension(resolvedPath);
+            return string.Equals(fileName, "CallGraph", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(fileName, "callgraph", StringComparison.OrdinalIgnoreCase) ||
+                   resolvedPath.Contains("callgraph", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return true;
         }
     }
 

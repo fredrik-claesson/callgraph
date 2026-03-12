@@ -40,6 +40,7 @@ internal static class CliCommandLine
               - install overwrites existing skill/agent/command files in those directories with the bundled versions.
               - install never auto-merges AGENTS.md/CLAUDE.md; it prints manual append instructions instead.
               - install creates callgraph shim in a writable PATH directory on macOS/Linux (fallback ~/.local/bin), or %LocalAppData%\Programs\callgraph on Windows.
+              - on macOS/Linux, install removes duplicate callgraph symlinks found on PATH (keeps the newly installed shim).
               - install updates Windows user PATH unless --skip-path is provided.
               - `serve` idle timeout defaults to 600 minutes (10 hours); override with `--idleMinutes`.
               - `serve` watches all indexed solutions by default; disable with `--no-watch-indexed`.
