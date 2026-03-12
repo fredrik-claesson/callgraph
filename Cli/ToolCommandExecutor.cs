@@ -18,6 +18,7 @@ internal sealed class ToolCommandExecutor
 {
     private static readonly HashSet<string> SupportedCommands = new(StringComparer.OrdinalIgnoreCase)
     {
+        "install",
         "reindex",
         "list-solutions",
         "search-file",
@@ -28,7 +29,17 @@ internal sealed class ToolCommandExecutor
         "list-warnings"
     };
 
-    private static readonly HashSet<string> DaemonPreferredCommands = new(SupportedCommands, StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> DaemonPreferredCommands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "reindex",
+        "list-solutions",
+        "search-file",
+        "search-method",
+        "list-methods",
+        "analyze",
+        "list-unused",
+        "list-warnings"
+    };
 
     private static readonly TimeSpan WarningDiagnosticsCacheTtl = TimeSpan.FromMinutes(2);
     private static readonly ConcurrentDictionary<string, WarningDiagnosticsCacheEntry> WarningDiagnosticsCache = new(StringComparer.OrdinalIgnoreCase);
@@ -62,6 +73,8 @@ internal sealed class ToolCommandExecutor
 
         switch (tool.Name)
         {
+            case "install":
+                return await InstallCommandRunner.RunAsync(tool, cancellationToken).ConfigureAwait(false);
             case "reindex":
             {
                 if (!TryGetRequired(tool.Options, "solutionPath", out var solutionPath, out var solutionPathError))

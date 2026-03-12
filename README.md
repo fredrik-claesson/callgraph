@@ -23,43 +23,27 @@ dotnet publish ./CallGraph.csproj -c Release -r osx-arm64 -o ./publish
 This produces a single executable `CallGraph` (or `CallGraph.exe` on Windows) in `./publish/`.
 For Windows, use `-r win-x64` (or your target RID).
 
-### 2. Make `callgraph` available system-wide
+### 2. Install command shim + skills
 
-**macOS / Linux**
+Run from the publish folder:
 
 ```bash
-# Using /usr/local/bin (requires sudo)
-sudo ln -s "$(pwd)/publish/CallGraph" /usr/local/bin/callgraph
-
-# Or, without sudo, using ~/.local/bin (ensure it is on your PATH)
-mkdir -p ~/.local/bin
-ln -s "$(pwd)/publish/CallGraph" ~/.local/bin/callgraph
+./CallGraph install
 ```
 
-**Windows — Option A: Symlink (Developer Mode or elevated prompt)**
+On Windows:
 
 ```powershell
-$target = (Resolve-Path .\publish\CallGraph.exe).Path
-New-Item -ItemType SymbolicLink -Path "$env:LOCALAPPDATA\Programs\callgraph\callgraph.exe" -Target $target
-[Environment]::SetEnvironmentVariable(
-    "PATH",
-    "$env:PATH;$env:LOCALAPPDATA\Programs\callgraph",
-    "User"
-)
+.\CallGraph.exe install
 ```
 
-**Windows — Option B: Copy and add to PATH**
-
-```powershell
-$dest = "$env:LOCALAPPDATA\Programs\callgraph"
-New-Item -ItemType Directory -Force -Path $dest
-Copy-Item -Path .\publish\* -Destination $dest -Recurse
-[Environment]::SetEnvironmentVariable(
-    "PATH",
-    "$env:PATH;$dest",
-    "User"
-)
-```
+What `install` does:
+- Deploys bundled `_claude`, `_codex`, `_cursor` into `~/.claude`, `~/.codex`, `~/.cursor`.
+- Installs `callgraph` command shim:
+  - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
+  - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
+- Updates Windows user `PATH` automatically (new shells).
+- On macOS/Linux, if `~/.local/bin` is not on `PATH`, it prints the exact export command.
 
 See [QUICKSTART.md](QUICKSTART.md) for more details.
 

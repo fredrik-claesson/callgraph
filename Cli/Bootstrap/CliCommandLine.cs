@@ -20,6 +20,7 @@ internal static class CliCommandLine
               callgraph --clear
 
             Analysis usage:
+              callgraph install [--home <path>] [--binDir <path>] [--skip-skills] [--skip-shim] [--skip-path]
               callgraph list-solutions [--no-daemon]
               callgraph search-file --pattern <pattern> [--regex] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
               callgraph search-method --keywords <keywords> [--regex] [--pattern <pattern>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
@@ -35,6 +36,9 @@ internal static class CliCommandLine
 
             Notes:
               - Analysis commands auto-start and reuse a background daemon by default.
+              - install deploys bundled _claude/_codex/_cursor assets into ~/.claude ~/.codex ~/.cursor.
+              - install creates callgraph shim in a writable PATH directory on macOS/Linux (fallback ~/.local/bin), or %LocalAppData%\Programs\callgraph on Windows.
+              - install updates Windows user PATH unless --skip-path is provided.
               - `serve` idle timeout defaults to 600 minutes (10 hours); override with `--idleMinutes`.
               - `serve` watches all indexed solutions by default; disable with `--no-watch-indexed`.
               - Use --no-daemon to run analysis in one-shot mode.
