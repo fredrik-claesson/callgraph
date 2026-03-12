@@ -67,3 +67,7 @@ secrets.json
 *.db-wal
 *.sqlite
 *.sqlite3
+.dotnet_cli/.dotnet/.workloadAdvertisingManifestSentinel10.0.100
+.dotnet_cli/.dotnet/10.0.102.aspNetCertificateSentinel
+.dotnet_cli/.dotnet/10.0.102.dotnetFirstUseSentinel
+.dotnet_cli/.dotnet/10.0.102.toolpath.sentinel
