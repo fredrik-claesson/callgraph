@@ -4,6 +4,7 @@ using CallGraph.Core.Analysis;
 using CallGraph.Core.Indexing;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace CallGraph.Core.Projects;
 
@@ -23,6 +24,8 @@ public sealed class ProjectIndexer : IProjectIndexer
 
         var interfaceImplementations = await BuildInterfaceImplementationMapAsync(projects, cancellationToken)
             .ConfigureAwait(false);
+        var messageHandlers = await BuildMessageHandlerMapAsync(projects, cancellationToken)
+            .ConfigureAwait(false);
 
         var documents = projects
             .SelectMany(p => p.Documents)
@@ -36,6 +39,7 @@ public sealed class ProjectIndexer : IProjectIndexer
                         outbound,
                         nodes,
                         interfaceImplementations,
+                        messageHandlers,
                         ct)
                     .ConfigureAwait(false);
             })
@@ -49,6 +53,7 @@ public sealed class ProjectIndexer : IProjectIndexer
         ConcurrentDictionary<string, HashSet<string>> outbound,
         ConcurrentDictionary<string, Node> nodes,
         Dictionary<string, List<INamedTypeSymbol>> interfaceImplementations,
+        Dictionary<string, List<IMethodSymbol>> messageHandlers,
         CancellationToken cancellationToken)
     {
         var root = await doc.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
@@ -72,7 +77,7 @@ public sealed class ProjectIndexer : IProjectIndexer
 
             foreach (var inv in md.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                var callee = ResolveMethodSymbol(model.GetSymbolInfo(inv, cancellationToken));
+                var callee = ResolveInvocationSymbol(inv, model, cancellationToken);
                 if (callee is null)
                     continue;
 
@@ -88,6 +93,16 @@ public sealed class ProjectIndexer : IProjectIndexer
                         interfaceMethod!,
                         interfaceImplementations);
                 }
+
+                AddPublishedMessageHandlerCalls(
+                    calls,
+                    nodes,
+                    caller,
+                    inv,
+                    callee,
+                    model,
+                    messageHandlers,
+                    cancellationToken);
             }
 
             foreach (var obj in md.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
@@ -109,6 +124,17 @@ public sealed class ProjectIndexer : IProjectIndexer
         => info.Symbol as IMethodSymbol
            ?? info.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
 
+    private static IMethodSymbol? ResolveInvocationSymbol(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        CancellationToken cancellationToken)
+    {
+        if (model.GetOperation(invocation, cancellationToken) is IInvocationOperation operation)
+            return operation.TargetMethod;
+
+        return ResolveMethodSymbol(model.GetSymbolInfo(invocation, cancellationToken));
+    }
+
     private static bool IsInterfaceCall(
         InvocationExpressionSyntax invocation,
         SemanticModel model,
@@ -117,17 +143,27 @@ public sealed class ProjectIndexer : IProjectIndexer
     {
         interfaceMethod = null;
 
-        if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+        var resolved = ResolveInvocationSymbol(invocation, model, cancellationToken);
+        if (resolved?.ContainingType?.TypeKind == TypeKind.Interface)
         {
-            var typeInfo = model.GetTypeInfo(memberAccess.Expression, cancellationToken);
-            var type = typeInfo.Type;
+            interfaceMethod = resolved;
+            return true;
+        }
 
-            if (type is INamedTypeSymbol { TypeKind: TypeKind.Interface })
-            {
-                var symbolInfo = model.GetSymbolInfo(invocation, cancellationToken);
-                interfaceMethod = symbolInfo.Symbol as IMethodSymbol;
-                return interfaceMethod?.ContainingType?.TypeKind == TypeKind.Interface;
-            }
+        if (model.GetOperation(invocation, cancellationToken) is not IInvocationOperation operation)
+            return false;
+
+        if (operation.TargetMethod.ContainingType.TypeKind == TypeKind.Interface)
+        {
+            interfaceMethod = operation.TargetMethod;
+            return true;
+        }
+
+        if (operation.Instance?.Type is INamedTypeSymbol { TypeKind: TypeKind.Interface } &&
+            operation.TargetMethod.ContainingType.TypeKind == TypeKind.Interface)
+        {
+            interfaceMethod = operation.TargetMethod;
+            return true;
         }
 
         return false;
@@ -173,6 +209,50 @@ public sealed class ProjectIndexer : IProjectIndexer
         return map;
     }
 
+    private static async Task<Dictionary<string, List<IMethodSymbol>>> BuildMessageHandlerMapAsync(
+        IReadOnlyList<Project> projects,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<string, List<IMethodSymbol>>(StringComparer.Ordinal);
+
+        foreach (var project in projects)
+        {
+            var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+            if (compilation is null)
+                continue;
+
+            foreach (var syntaxTree in compilation.SyntaxTrees)
+            {
+                var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+
+                foreach (var methodDeclaration in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+                {
+                    var method = semanticModel.GetDeclaredSymbol(methodDeclaration, cancellationToken) as IMethodSymbol;
+                    if (!IsMessageHandlerCandidate(method))
+                        continue;
+
+                    foreach (var parameter in method!.Parameters)
+                    {
+                        if (!IsMessagePayloadType(parameter.Type))
+                            continue;
+
+                        var key = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        if (!map.TryGetValue(key, out var handlers))
+                        {
+                            handlers = new List<IMethodSymbol>();
+                            map[key] = handlers;
+                        }
+
+                        handlers.Add(method);
+                    }
+                }
+            }
+        }
+
+        return map;
+    }
+
     private static void AddInterfaceImplementationCalls(
         HashSet<string> calls,
         ConcurrentDictionary<string, Node> nodes,
@@ -198,6 +278,126 @@ public sealed class ProjectIndexer : IProjectIndexer
             calls.Add(implementationKey);
             TryAddSourceNode(nodes, implementationKey, implementationMethod);
         }
+    }
+
+    private static void AddPublishedMessageHandlerCalls(
+        HashSet<string> calls,
+        ConcurrentDictionary<string, Node> nodes,
+        IMethodSymbol caller,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol callee,
+        SemanticModel model,
+        Dictionary<string, List<IMethodSymbol>> messageHandlers,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetPublishedMessageType(invocation, callee, model, cancellationToken, out var payloadType))
+            return;
+
+        var payloadKey = payloadType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (!messageHandlers.TryGetValue(payloadKey, out var handlers))
+            return;
+
+        var callerKey = SymbolKeyFormatter.Format(caller);
+        foreach (var handler in handlers)
+        {
+            if (SymbolEqualityComparer.Default.Equals(handler, caller))
+                continue;
+
+            var handlerKey = SymbolKeyFormatter.Format(handler);
+            if (string.Equals(handlerKey, callerKey, StringComparison.Ordinal))
+                continue;
+
+            calls.Add(handlerKey);
+            TryAddSourceNode(nodes, handlerKey, handler);
+        }
+    }
+
+    private static bool TryGetPublishedMessageType(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol callee,
+        SemanticModel model,
+        CancellationToken cancellationToken,
+        out ITypeSymbol? payloadType)
+    {
+        payloadType = null;
+
+        if (!LooksLikePublisherCall(callee))
+            return false;
+
+        if (callee.IsGenericMethod && callee.TypeArguments.Length > 0)
+        {
+            var typeArgument = callee.TypeArguments[0];
+            if (IsMessagePayloadType(typeArgument))
+            {
+                payloadType = typeArgument;
+                return true;
+            }
+        }
+
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            var type = model.GetTypeInfo(argument.Expression, cancellationToken).Type;
+            if (!IsMessagePayloadType(type))
+                continue;
+
+            payloadType = type;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikePublisherCall(IMethodSymbol callee)
+    {
+        if (ContainsPublisherVerb(callee.Name))
+            return true;
+
+        var containingType = callee.ContainingType?.Name ?? string.Empty;
+        return containingType.Contains("Event", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Bus", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Mediator", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Publisher", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Dispatcher", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsPublisherVerb(string methodName)
+        => methodName.Contains("Publish", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Emit", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Dispatch", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Raise", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Send", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsMessageHandlerCandidate(IMethodSymbol? method)
+    {
+        if (method is null || method.MethodKind != MethodKind.Ordinary)
+            return false;
+
+        if (method.Parameters.Length == 0)
+            return false;
+
+        if (method.Name.Contains("Handle", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var containingTypeName = method.ContainingType?.Name ?? string.Empty;
+        return containingTypeName.Contains("Handler", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMessagePayloadType(ITypeSymbol? type)
+    {
+        if (type is null)
+            return false;
+
+        if (type.SpecialType != SpecialType.None)
+            return false;
+
+        var fullName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (string.Equals(fullName, "global::System.String", StringComparison.Ordinal)
+            || string.Equals(fullName, "global::System.Threading.CancellationToken", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static void TryAddSourceNode(

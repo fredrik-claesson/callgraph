@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using CallGraph.Cli;
 
 namespace CallGraph;
@@ -7,6 +9,7 @@ internal static class InstallCommandRunner
 {
     private static readonly string[] AssetDirectories = ["_claude", "_codex", "_cursor"];
     private static readonly string[] SectionTemplateNames = ["AGENTS.md", "CLAUDE.md"];
+    private const string ClaudeHookRelativePath = "hooks/callgraph-rewrite.sh";
 
     public static async Task<ToolExecutionResult> RunAsync(ToolCommand tool, CancellationToken cancellationToken)
     {
@@ -56,6 +59,9 @@ internal static class InstallCommandRunner
                 CopyDirectory(sourcePath, targetPath);
                 messages.Add($"Deployed {sourceName} -> {targetPath}");
                 messages.AddRange(GetManualSectionInstructions(sourcePath, targetPath));
+
+                if (string.Equals(sourceName, "_claude", StringComparison.Ordinal))
+                    EnsureClaudeRewriteHookConfigured(targetPath, messages);
             }
         }
 
@@ -484,5 +490,137 @@ internal static class InstallCommandRunner
         {
             return false;
         }
+    }
+
+    private static void EnsureClaudeRewriteHookConfigured(string claudeRoot, List<string> messages)
+    {
+        var hookPath = Path.Combine(claudeRoot, ClaudeHookRelativePath);
+        if (!File.Exists(hookPath))
+        {
+            messages.Add($"Warning: Claude hook file not found: {hookPath}");
+            return;
+        }
+
+        TryEnsureExecutable(hookPath);
+        var settingsPath = Path.Combine(claudeRoot, "settings.json");
+
+        try
+        {
+            JsonObject root;
+            if (File.Exists(settingsPath))
+            {
+                var content = File.ReadAllText(settingsPath);
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    root = new JsonObject();
+                }
+                else
+                {
+                    var parsed = JsonNode.Parse(content);
+                    if (parsed is not JsonObject parsedObject)
+                    {
+                        messages.Add(
+                            $"Manual step: {settingsPath} is not a JSON object. Add a PreToolUse hook pointing to {hookPath}.");
+                        return;
+                    }
+
+                    root = parsedObject;
+                }
+            }
+            else
+            {
+                root = new JsonObject();
+            }
+
+            if (HasClaudeHook(root, hookPath))
+            {
+                messages.Add($"Claude hook already configured in {settingsPath}");
+                return;
+            }
+
+            AddClaudeHook(root, hookPath);
+            var serialized = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(settingsPath, serialized + Environment.NewLine);
+            messages.Add($"Configured Claude PreToolUse hook in {settingsPath}");
+        }
+        catch (Exception ex)
+        {
+            messages.Add(
+                $"Manual step: could not update {settingsPath} ({ex.Message}). Add a PreToolUse hook pointing to {hookPath}.");
+        }
+    }
+
+    private static bool HasClaudeHook(JsonObject root, string hookPath)
+    {
+        if (root["hooks"] is not JsonObject hooksObject)
+            return false;
+
+        if (hooksObject["PreToolUse"] is not JsonArray preToolUseArray)
+            return false;
+
+        foreach (var entry in preToolUseArray.OfType<JsonObject>())
+        {
+            if (entry["hooks"] is not JsonArray hooksArray)
+                continue;
+
+            foreach (var hook in hooksArray.OfType<JsonObject>())
+            {
+                var command = hook["command"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(command) &&
+                    PathsEqual(ExpandHomePath(command), hookPath))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void AddClaudeHook(JsonObject root, string hookPath)
+    {
+        if (root["hooks"] is not JsonObject hooksObject)
+        {
+            hooksObject = new JsonObject();
+            root["hooks"] = hooksObject;
+        }
+
+        if (hooksObject["PreToolUse"] is not JsonArray preToolUseArray)
+        {
+            preToolUseArray = new JsonArray();
+            hooksObject["PreToolUse"] = preToolUseArray;
+        }
+
+        preToolUseArray.Add(new JsonObject
+        {
+            ["matcher"] = "Bash",
+            ["hooks"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["type"] = "command",
+                    ["command"] = hookPath
+                }
+            }
+        });
+    }
+
+    private static string ExpandHomePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return path;
+
+        if (!path.StartsWith("~", StringComparison.Ordinal))
+            return path;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(home))
+            return path;
+
+        if (path.Length == 1)
+            return home;
+
+        if (path[1] == '/' || path[1] == '\\')
+            return Path.Combine(home, path[2..]);
+
+        return path;
     }
 }

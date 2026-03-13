@@ -22,6 +22,7 @@ internal sealed class ToolCommandExecutor
     private static readonly HashSet<string> SupportedCommands = new(StringComparer.OrdinalIgnoreCase)
     {
         "install",
+        "rewrite",
         "reindex",
         "list-solutions",
         "search-file",
@@ -81,6 +82,16 @@ internal sealed class ToolCommandExecutor
         {
             case "install":
                 return await InstallCommandRunner.RunAsync(tool, cancellationToken).ConfigureAwait(false);
+            case "rewrite":
+            {
+                if (!TryGetRequired(tool.Options, "command", out var command, out var commandError))
+                    return ToolExecutionResult.FromError(commandError!);
+
+                if (!CommandRewriteEngine.TryRewrite(command, out var rewritten))
+                    return ToolExecutionResult.FromError("No rewrite available.");
+
+                return ToolExecutionResult.FromText(rewritten);
+            }
             case "reindex":
             {
                 if (!TryGetRequired(tool.Options, "solutionPath", out var solutionPath, out var solutionPathError))
@@ -339,7 +350,7 @@ internal sealed class ToolCommandExecutor
                     var totalCount = diagnostics.Count;
                     var resultDiagnostics = totalCount > limit ? diagnostics.Take(limit).ToList() : diagnostics;
                     return ToolExecutionResult.FromPayload(
-                        ToolResponseMapper.ToDiagnosticResponse(resultDiagnostics, totalCount, limit),
+                        ToolResponseMapper.ToDiagnosticResponse(resultDiagnostics, totalCount),
                         JsonOutputOptions);
                 }
                 finally
@@ -391,7 +402,7 @@ internal sealed class ToolCommandExecutor
                     var totalCount = diagnostics.Count;
                     var resultDiagnostics = totalCount > limit ? diagnostics.Take(limit).ToList() : diagnostics;
                     return ToolExecutionResult.FromPayload(
-                        ToolResponseMapper.ToDiagnosticResponse(resultDiagnostics, totalCount, limit),
+                        ToolResponseMapper.ToDiagnosticResponse(resultDiagnostics, totalCount),
                         JsonOutputOptions);
                 }
                 finally

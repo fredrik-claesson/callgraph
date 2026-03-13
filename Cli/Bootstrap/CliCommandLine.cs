@@ -21,6 +21,7 @@ internal static class CliCommandLine
 
             Analysis usage:
               callgraph install [--home <path>] [--binDir <path>] [--skip-skills] [--skip-shim] [--skip-path]
+              callgraph rewrite --command <shell command>
               callgraph list-solutions [--no-daemon]
               callgraph search-file --pattern <pattern> [--regex] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
               callgraph search-method --keywords <keywords> [--regex] [--pattern <pattern>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
@@ -49,6 +50,7 @@ internal static class CliCommandLine
               - search-file outputs plain text (one file path per line).
               - search-method/list-methods output plain text rows: <filePath[:line]>\t<containingType>\t<methodName>\t<signature>.
               - analyze output is structured JSON.
+              - rewrite prints a rewritten command when a safe CallGraph equivalent exists; otherwise exits non-zero.
               - get-method-source output is structured JSON with exact line/byte span and selected method content.
               - list-methods defaults to --visibility external (public/protected/protected internal), and refreshes listed signatures from live source.
               - list-unused/list-warnings require both --projectPath and --filePath.

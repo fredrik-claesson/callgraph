@@ -21,6 +21,11 @@ public class Worker
         new Utility().DoWork();
     }
 
+    public void RunWithConditional(INotifier? notifier)
+    {
+        notifier?.Notify("conditional");
+    }
+
     private void DirectHelper()
     {
         _helper.Help();

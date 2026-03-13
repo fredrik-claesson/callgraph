@@ -5,6 +5,7 @@ using CallGraph.Core.Analysis;
 using CallGraph.Core.Solutions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -15,6 +16,9 @@ public sealed class FileIndexer : IFileIndexer
     private readonly ISolutionLoader _solutionLoader;
     private readonly ISolutionContextCache? _solutionContextCache;
     private readonly ILogger<FileIndexer> _logger;
+    private sealed record DispatchMaps(
+        Dictionary<string, List<INamedTypeSymbol>> InterfaceImplementations,
+        Dictionary<string, List<IMethodSymbol>> MessageHandlers);
 
     public FileIndexer(
         ISolutionLoader solutionLoader,
@@ -64,18 +68,20 @@ public sealed class FileIndexer : IFileIndexer
             var buildLookupMs = stageTimer.ElapsedMilliseconds;
             stageTimer.Restart();
 
-            long interfaceMapBuildMs = -1;
-            var interfaceMapBuilt = 0;
-            var interfaceMap = new Lazy<Task<Dictionary<string, List<INamedTypeSymbol>>>>(
+            long dispatchMapBuildMs = -1;
+            var dispatchMapBuilt = 0;
+            var dispatchMaps = new Lazy<Task<DispatchMaps>>(
                 async () =>
                 {
                     var mapTimer = Stopwatch.StartNew();
-                    var map = await BuildInterfaceImplementationMapAsync(loadedContext.Projects, cancellationToken)
+                    var interfaceMap = await BuildInterfaceImplementationMapAsync(loadedContext.Projects, cancellationToken)
+                        .ConfigureAwait(false);
+                    var messageHandlerMap = await BuildMessageHandlerMapAsync(loadedContext.Projects, cancellationToken)
                         .ConfigureAwait(false);
                     mapTimer.Stop();
-                    Interlocked.Exchange(ref interfaceMapBuildMs, mapTimer.ElapsedMilliseconds);
-                    Interlocked.Exchange(ref interfaceMapBuilt, 1);
-                    return map;
+                    Interlocked.Exchange(ref dispatchMapBuildMs, mapTimer.ElapsedMilliseconds);
+                    Interlocked.Exchange(ref dispatchMapBuilt, 1);
+                    return new DispatchMaps(interfaceMap, messageHandlerMap);
                 });
 
             var results = new ConcurrentBag<FileIndex>();
@@ -94,7 +100,7 @@ public sealed class FileIndexer : IFileIndexer
                 var index = await BuildIndexForDocumentAsync(
                         doc,
                         normalizedFilePath,
-                        () => interfaceMap.Value,
+                        () => dispatchMaps.Value,
                         ct)
                     .ConfigureAwait(false);
                 if (index is not null)
@@ -112,8 +118,8 @@ public sealed class FileIndexer : IFileIndexer
                 missingDocumentCount,
                 loadSolutionMs,
                 buildLookupMs,
-                interfaceMapBuilt == 1,
-                interfaceMapBuilt == 1 ? interfaceMapBuildMs : 0,
+                dispatchMapBuilt == 1,
+                dispatchMapBuilt == 1 ? dispatchMapBuildMs : 0,
                 indexDocumentsMs,
                 totalTimer.ElapsedMilliseconds,
                 results.Count);
@@ -143,13 +149,29 @@ public sealed class FileIndexer : IFileIndexer
             From = from,
             To = to,
             Direction = "outbound",
-            Kind = callKind == "interface" ? "calls-via-interface" : "calls"
+            Kind = callKind switch
+            {
+                "interface" => "calls-via-interface",
+                "message" => "calls-via-message",
+                _ => "calls"
+            }
         });
     }
 
     private static IMethodSymbol? ResolveMethodSymbol(SymbolInfo info)
         => info.Symbol as IMethodSymbol
            ?? info.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+
+    private static IMethodSymbol? ResolveInvocationSymbol(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        CancellationToken cancellationToken)
+    {
+        if (model.GetOperation(invocation, cancellationToken) is IInvocationOperation operation)
+            return operation.TargetMethod;
+
+        return ResolveMethodSymbol(model.GetSymbolInfo(invocation, cancellationToken));
+    }
 
     private static bool IsInterfaceCall(
         InvocationExpressionSyntax invocation,
@@ -159,21 +181,27 @@ public sealed class FileIndexer : IFileIndexer
     {
         interfaceMethod = null;
 
-        // Get the expression being invoked (the thing before the parentheses)
-        var expression = invocation.Expression;
-        
-        // For member access (obj.Method()), check the type of the object
-        if (expression is MemberAccessExpressionSyntax memberAccess)
+        var resolved = ResolveInvocationSymbol(invocation, model, cancellationToken);
+        if (resolved?.ContainingType?.TypeKind == TypeKind.Interface)
         {
-            var typeInfo = model.GetTypeInfo(memberAccess.Expression, cancellationToken);
-            var type = typeInfo.Type;
-            
-            if (type is INamedTypeSymbol { TypeKind: TypeKind.Interface } interfaceType)
-            {
-                var symbolInfo = model.GetSymbolInfo(invocation, cancellationToken);
-                interfaceMethod = symbolInfo.Symbol as IMethodSymbol;
-                return interfaceMethod?.ContainingType?.TypeKind == TypeKind.Interface;
-            }
+            interfaceMethod = resolved;
+            return true;
+        }
+
+        if (model.GetOperation(invocation, cancellationToken) is not IInvocationOperation operation)
+            return false;
+
+        if (operation.TargetMethod.ContainingType.TypeKind == TypeKind.Interface)
+        {
+            interfaceMethod = operation.TargetMethod;
+            return true;
+        }
+
+        if (operation.Instance?.Type is INamedTypeSymbol { TypeKind: TypeKind.Interface } &&
+            operation.TargetMethod.ContainingType.TypeKind == TypeKind.Interface)
+        {
+            interfaceMethod = operation.TargetMethod;
+            return true;
         }
 
         return false;
@@ -220,6 +248,50 @@ public sealed class FileIndexer : IFileIndexer
         return map;
     }
 
+    private static async Task<Dictionary<string, List<IMethodSymbol>>> BuildMessageHandlerMapAsync(
+        IEnumerable<Project> projects,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<string, List<IMethodSymbol>>(StringComparer.Ordinal);
+
+        foreach (var project in projects)
+        {
+            var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
+            if (compilation is null)
+                continue;
+
+            foreach (var syntaxTree in compilation.SyntaxTrees)
+            {
+                var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+
+                foreach (var methodDeclaration in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+                {
+                    var method = semanticModel.GetDeclaredSymbol(methodDeclaration, cancellationToken) as IMethodSymbol;
+                    if (!IsMessageHandlerCandidate(method))
+                        continue;
+
+                    foreach (var parameter in method!.Parameters)
+                    {
+                        if (!IsMessagePayloadType(parameter.Type))
+                            continue;
+
+                        var key = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        if (!map.TryGetValue(key, out var handlers))
+                        {
+                            handlers = new List<IMethodSymbol>();
+                            map[key] = handlers;
+                        }
+
+                        handlers.Add(method);
+                    }
+                }
+            }
+        }
+
+        return map;
+    }
+
     private static Dictionary<string, Document> BuildDocumentLookup(IEnumerable<Project> projects)
     {
         var lookup = new Dictionary<string, Document>(StringComparer.OrdinalIgnoreCase);
@@ -242,7 +314,7 @@ public sealed class FileIndexer : IFileIndexer
     private static async Task<FileIndex?> BuildIndexForDocumentAsync(
         Document doc,
         string normalizedFilePath,
-        Func<Task<Dictionary<string, List<INamedTypeSymbol>>>> getInterfaceImplementations,
+        Func<Task<DispatchMaps>> getDispatchMaps,
         CancellationToken cancellationToken)
     {
         var root = await doc.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
@@ -253,7 +325,7 @@ public sealed class FileIndexer : IFileIndexer
         var nodes = new List<Node>();
         var edges = new List<Edge>();
         var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, List<INamedTypeSymbol>>? interfaceImplementations = null;
+        DispatchMaps? dispatchMaps = null;
 
         foreach (var md in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
         {
@@ -268,8 +340,7 @@ public sealed class FileIndexer : IFileIndexer
 
             foreach (var inv in md.DescendantNodes().OfType<InvocationExpressionSyntax>())
             {
-                var symbolInfo = model.GetSymbolInfo(inv, cancellationToken);
-                var callee = ResolveMethodSymbol(symbolInfo);
+                var callee = ResolveInvocationSymbol(inv, model, cancellationToken);
                 if (callee is null)
                     continue;
 
@@ -277,14 +348,25 @@ public sealed class FileIndexer : IFileIndexer
 
                 if (IsInterfaceCall(inv, model, cancellationToken, out var interfaceMethod))
                 {
-                    interfaceImplementations ??= await getInterfaceImplementations().ConfigureAwait(false);
+                    dispatchMaps ??= await getDispatchMaps().ConfigureAwait(false);
                     AddInterfaceImplementationEdges(
                         edges,
                         edgeKeys,
                         callerKey,
                         interfaceMethod!,
-                        interfaceImplementations);
+                        dispatchMaps.InterfaceImplementations);
                 }
+
+                dispatchMaps ??= await getDispatchMaps().ConfigureAwait(false);
+                AddPublishedMessageHandlerEdges(
+                    edges,
+                    edgeKeys,
+                    callerKey,
+                    inv,
+                    callee,
+                    model,
+                    dispatchMaps.MessageHandlers,
+                    cancellationToken);
             }
 
             foreach (var obj in md.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
@@ -337,6 +419,121 @@ public sealed class FileIndexer : IFileIndexer
                 AddEdge(edges, edgeKeys, callerKey, implementationKey, "interface");
             }
         }
+    }
+
+    private static void AddPublishedMessageHandlerEdges(
+        ICollection<Edge> edges,
+        HashSet<string> edgeKeys,
+        string callerKey,
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol callee,
+        SemanticModel model,
+        Dictionary<string, List<IMethodSymbol>> messageHandlers,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetPublishedMessageType(invocation, callee, model, cancellationToken, out var payloadType))
+            return;
+
+        var payloadKey = payloadType!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (!messageHandlers.TryGetValue(payloadKey, out var handlers))
+            return;
+
+        foreach (var handler in handlers)
+        {
+            var handlerKey = SymbolKeyFormatter.Format(handler);
+            if (string.Equals(handlerKey, callerKey, StringComparison.Ordinal))
+                continue;
+
+            AddEdge(edges, edgeKeys, callerKey, handlerKey, "message");
+        }
+    }
+
+    private static bool TryGetPublishedMessageType(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol callee,
+        SemanticModel model,
+        CancellationToken cancellationToken,
+        out ITypeSymbol? payloadType)
+    {
+        payloadType = null;
+
+        if (!LooksLikePublisherCall(callee))
+            return false;
+
+        if (callee.IsGenericMethod && callee.TypeArguments.Length > 0)
+        {
+            var typeArgument = callee.TypeArguments[0];
+            if (IsMessagePayloadType(typeArgument))
+            {
+                payloadType = typeArgument;
+                return true;
+            }
+        }
+
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            var type = model.GetTypeInfo(argument.Expression, cancellationToken).Type;
+            if (!IsMessagePayloadType(type))
+                continue;
+
+            payloadType = type;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikePublisherCall(IMethodSymbol callee)
+    {
+        if (ContainsPublisherVerb(callee.Name))
+            return true;
+
+        var containingType = callee.ContainingType?.Name ?? string.Empty;
+        return containingType.Contains("Event", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Bus", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Mediator", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Publisher", StringComparison.OrdinalIgnoreCase)
+               || containingType.Contains("Dispatcher", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsPublisherVerb(string methodName)
+        => methodName.Contains("Publish", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Emit", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Dispatch", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Raise", StringComparison.OrdinalIgnoreCase)
+           || methodName.Contains("Send", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsMessageHandlerCandidate(IMethodSymbol? method)
+    {
+        if (method is null || method.MethodKind != MethodKind.Ordinary)
+            return false;
+
+        if (method.Parameters.Length == 0)
+            return false;
+
+        if (method.Name.Contains("Handle", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var containingTypeName = method.ContainingType?.Name ?? string.Empty;
+        return containingTypeName.Contains("Handler", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMessagePayloadType(ITypeSymbol? type)
+    {
+        if (type is null)
+            return false;
+
+        if (type.SpecialType != SpecialType.None)
+            return false;
+
+        var fullName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (string.Equals(fullName, "global::System.String", StringComparison.Ordinal)
+            || string.Equals(fullName, "global::System.Threading.CancellationToken", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static Node MakeNode(IMethodSymbol method, Location? location)

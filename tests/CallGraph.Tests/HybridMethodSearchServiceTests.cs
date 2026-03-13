@@ -183,9 +183,8 @@ public sealed class HybridMethodSearchServiceTests
             filePath: null,
             CancellationToken.None);
 
-        Assert.Equal(2, result.Count);
+        Assert.Single(result);
         Assert.Equal(methods[0].Method.Id, result[0].Method.Id);
-        Assert.Equal(methods[1].Method.Id, result[1].Method.Id);
     }
 
     private static SearchMethodMatch CreateMatch(string methodId, string containingType, string display)

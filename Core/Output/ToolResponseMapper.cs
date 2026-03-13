@@ -29,8 +29,7 @@ public static class ToolResponseMapper
 
     public static DiagnosticToolResponse ToDiagnosticResponse(
         IReadOnlyList<Diagnostic> diagnostics,
-        int totalCount,
-        int limit)
+        int totalCount)
     {
         var rows = diagnostics
             .Select(static diagnostic => new DiagnosticToolRow(
@@ -46,8 +45,6 @@ public static class ToolResponseMapper
 
         return new DiagnosticToolResponse(
             totalCount,
-            rows.Count,
-            totalCount > limit,
             rows);
     }
 
@@ -85,7 +82,7 @@ public static class ToolResponseMapper
             .ThenBy(static call => call.Direction, StringComparer.Ordinal)
             .ToList();
 
-        return new AnalyzeToolResponse(methods.Count, calls.Count, methods, calls);
+        return new AnalyzeToolResponse(methods, calls);
     }
 
     private static string ExtractMethodName(string? display, string methodId)

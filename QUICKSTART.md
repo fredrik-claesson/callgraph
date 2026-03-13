@@ -33,6 +33,7 @@ Installer behavior:
 - Copies bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist (`~/.claude`, `~/.codex`, `~/.cursor`).
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Never auto-merges `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
+- Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
 - Installs `callgraph` shim:
   - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
@@ -55,6 +56,7 @@ callgraph list-solutions   # auto-starts daemon on first call
 # Search file/method
 callgraph search-file --pattern "*Controller.cs"
 callgraph search-method --keywords "login authentication"
+callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
 callgraph list-methods --solutionPath "/abs/path/to/solution.sln"   # defaults to --visibility external; signatures are refreshed live
 
 # Analyze call graph

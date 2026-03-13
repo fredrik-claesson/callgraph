@@ -234,6 +234,219 @@ public sealed class AnalyzeInterfaceCallsE2ETests
         }
     }
 
+    [Fact]
+    public async Task Analyze_BridgesPublisherPayloadToHandlerAndInterfaceImplementation()
+    {
+        var solutionPath = GetSolutionPath();
+        var creatorPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "AdyenTerminalOrderCreator.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: creatorPath,
+                    Depth: 3,
+                    Method: "CreateAdyenTerminalOrderAsync",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var creator = FindNodeIdByMethodName(graph, "CreateAdyenTerminalOrderAsync");
+            var handler = FindNodeIdByMethodName(graph, "HandleInternalAsync");
+            var terminalComponent = FindNodeIdByMethodName(graph, "CreateTerminalProductSubscriptionOnTerminalOrder");
+
+            Assert.True(creator is not null, "Missing creator method");
+            Assert.True(handler is not null, "Missing handler method");
+            Assert.True(terminalComponent is not null, "Missing terminal component implementation method");
+            Assert.Contains(graph.Edges, edge => edge.From == creator && edge.To == handler);
+            Assert.Contains(graph.Edges, edge => edge.From == handler && edge.To == terminalComponent);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task IncrementalReindex_PreservesInboundCallersToUpdatedFileMethods()
+    {
+        var sourceSolutionPath = GetSolutionPath();
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"callgraph-e2e-{Guid.NewGuid():N}");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            CopyDirectory(Path.GetDirectoryName(sourceSolutionPath)!, tempRoot);
+            var solutionPath = Path.Combine(tempRoot, "InterfaceCallE2E.sln");
+            var helperPath = Path.Combine(tempRoot, "InterfaceCallE2E", "Services", "Helper.cs");
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+
+            var before = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: helperPath,
+                    Depth: 1,
+                    Method: "Help",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "inbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(before.Graph is not null, $"Analyze failed before reindex: {before.Error?.Kind} - {before.Error?.Detail}");
+            var beforeGraph = before.Graph!;
+            var beforeHelper = FindNodeId(beforeGraph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+            var beforeCaller = FindNodeId(beforeGraph, "Worker.DirectHelper()", "InterfaceCallE2E.Application.Services.Worker.DirectHelper()");
+            Assert.True(beforeHelper is not null, "Missing Helper.Help() before reindex");
+            Assert.True(beforeCaller is not null, "Missing Worker.DirectHelper() before reindex");
+            Assert.Contains(beforeGraph.Edges, edge => edge.From == beforeCaller && edge.To == beforeHelper);
+
+            File.AppendAllText(helperPath, Environment.NewLine + " ");
+            File.SetLastWriteTimeUtc(helperPath, DateTime.UtcNow.AddSeconds(5));
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-2", solutionId, solutionPath, false, true),
+                CancellationToken.None);
+
+            var after = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: helperPath,
+                    Depth: 1,
+                    Method: "Help",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "inbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(after.Graph is not null, $"Analyze failed after reindex: {after.Error?.Kind} - {after.Error?.Detail}");
+            var afterGraph = after.Graph!;
+            var afterHelper = FindNodeId(afterGraph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+            var afterCaller = FindNodeId(afterGraph, "Worker.DirectHelper()", "InterfaceCallE2E.Application.Services.Worker.DirectHelper()");
+            Assert.True(afterHelper is not null, "Missing Helper.Help() after reindex");
+            Assert.True(afterCaller is not null, "Missing Worker.DirectHelper() after reindex");
+            Assert.Contains(afterGraph.Edges, edge => edge.From == afterCaller && edge.To == afterHelper);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Analyze_ConditionalInterfaceCall_MapsToImplementations()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "RunWithConditional",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var conditionalCaller = FindNodeIdByMethodName(graph, "RunWithConditional");
+            var emailNotify = FindNodeIdByMethodName(graph, "EmailNotifier.Notify");
+            var smsNotify = FindNodeIdByMethodName(graph, "SmsNotifier.Notify");
+
+            Assert.True(conditionalCaller is not null, "Missing Worker.RunWithConditional");
+            Assert.True(emailNotify is not null, "Missing EmailNotifier.Notify");
+            Assert.True(smsNotify is not null, "Missing SmsNotifier.Notify");
+            Assert.Contains(graph.Edges, edge => edge.From == conditionalCaller && edge.To == emailNotify);
+            Assert.Contains(graph.Edges, edge => edge.From == conditionalCaller && edge.To == smsNotify);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
     private static string? FindNodeId(Graph graph, string displaySuffix, string idSuffix)
     {
         var match = graph.Nodes.FirstOrDefault(n => n.Id.EndsWith(idSuffix, StringComparison.Ordinal));
@@ -241,6 +454,14 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             return match.Id;
 
         match = graph.Nodes.FirstOrDefault(n => (n.Display ?? "").EndsWith(displaySuffix, StringComparison.Ordinal));
+        return match?.Id;
+    }
+
+    private static string? FindNodeIdByMethodName(Graph graph, string methodName)
+    {
+        var match = graph.Nodes.FirstOrDefault(n =>
+            (!string.IsNullOrWhiteSpace(n.Display) && n.Display.Contains(methodName, StringComparison.Ordinal))
+            || n.Id.Contains($".{methodName}(", StringComparison.Ordinal));
         return match?.Id;
     }
 
@@ -258,6 +479,23 @@ public sealed class AnalyzeInterfaceCallsE2ETests
         return accessibility.Equals("public", StringComparison.OrdinalIgnoreCase)
                || accessibility.Equals("protected", StringComparison.OrdinalIgnoreCase)
                || accessibility.Equals("protected internal", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    {
+        Directory.CreateDirectory(destinationDirectory);
+
+        foreach (var filePath in Directory.GetFiles(sourceDirectory))
+        {
+            var destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(filePath));
+            File.Copy(filePath, destinationPath, overwrite: true);
+        }
+
+        foreach (var directoryPath in Directory.GetDirectories(sourceDirectory))
+        {
+            var destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(directoryPath));
+            CopyDirectory(directoryPath, destinationPath);
+        }
     }
 
     private sealed class AllowAllProjectFilter : IProjectFilter

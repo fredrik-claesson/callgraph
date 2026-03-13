@@ -2,7 +2,7 @@ namespace CallGraph.Core.Search;
 
 public sealed class HybridMethodSearchOptions
 {
-    public int ResultLimit { get; set; } = 200;
+    public int ResultLimit { get; set; } = 80;
     public int LexicalTopK { get; set; } = 200;
     public int MaxCandidatePool { get; set; } = 2000;
     public int MaxPatternQueries { get; set; } = 8;

@@ -15,8 +15,6 @@ public sealed record SearchMethodToolRow(
 
 public sealed record DiagnosticToolResponse(
     int TotalCount,
-    int ReturnedCount,
-    bool Truncated,
     IReadOnlyList<DiagnosticToolRow> Diagnostics);
 
 public sealed record DiagnosticToolRow(
@@ -30,8 +28,6 @@ public sealed record DiagnosticToolRow(
     int? EndColumn);
 
 public sealed record AnalyzeToolResponse(
-    int MethodCount,
-    int CallCount,
     IReadOnlyList<AnalyzeMethodToolRow> Methods,
     IReadOnlyList<AnalyzeCallToolRow> Calls);
 

@@ -4,6 +4,14 @@
 
 CallGraph is a .NET 10 CLI that indexes C# solutions with Roslyn into a local SQLite database and provides fast CLI analysis commands.
 
+## Purpose
+
+CallGraph is designed to improve coding-agent precision and reduce token usage for C# work:
+
+- Agents and developers run targeted local analysis/search commands instead of scanning large code chunks in prompts.
+- Bundled templates in `_claude`, `_codex`, and `_cursor` standardize how agents invoke CallGraph workflows.
+- The result is faster, more accurate code navigation and dependency understanding across large solutions.
+
 ## Build and Run
 
 ```bash

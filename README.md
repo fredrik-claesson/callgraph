@@ -2,6 +2,14 @@
 
 CallGraph is a .NET CLI tool that indexes C# solutions with Roslyn and stores a local SQLite index for fast call graph analysis, search, and diagnostics.
 
+## Purpose
+
+CallGraph exists to improve coding-agent and developer workflows for C# codebases by:
+
+- providing precise, local code intelligence (search, call graph analysis, diagnostics, and live method source extraction)
+- reducing token usage and response latency by replacing broad prompt-based code scanning with targeted local CLI queries
+- shipping agent skill templates in `_claude`, `_codex`, and `_cursor` so agents can use consistent, high-precision CallGraph workflows
+
 ## Key Features
 
 - Direct and interface-based dependency resolution using Roslyn Analyzer
@@ -41,6 +49,7 @@ What `install` does:
 - Deploys bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`).
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
+- Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
 - Installs `callgraph` command shim:
   - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
@@ -83,6 +92,9 @@ callgraph search-file --pattern "*Controller.cs" [--regex] [--solutionPath /path
 # Search methods
 callgraph search-method --keywords "login authentication" [--regex] [--pattern <pattern>] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
 
+# Rewrite a shell command when a safe CallGraph equivalent exists
+callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
+
 # List methods (visibility defaults to external)
 callgraph list-methods [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
 
@@ -101,6 +113,7 @@ callgraph list-warnings --projectPath /abs/project.csproj --filePath /abs/file.c
 
 Notes:
 - Analysis commands auto-start and reuse a background daemon by default.
+- `rewrite` outputs a rewritten command when a safe equivalent exists; otherwise exits non-zero.
 - Use `--no-daemon` for one-shot execution or `--require-daemon` to fail if daemon is unavailable.
 - `analyze` defaults to depth `1` when `--depth` is omitted.
 - `analyze` auto-selects the indexed solution when exactly one solution is indexed and no `--solutionPath`/`--solutionId` is provided.
@@ -113,7 +126,7 @@ Notes:
 - `list-methods` defaults to `--visibility external` (public/protected/protected internal), and refreshes listed signatures from live source before output. Use `--visibility internal` to include all methods.
 - `list-unused` and `list-warnings` require both `--projectPath` and `--filePath`.
 - `--filePath` must be absolute and point to a `.cs` file.
-- Diagnostic commands return structured raw JSON with `totalCount`, `returnedCount`, `truncated`, and `diagnostics`.
+- Diagnostic commands return structured raw JSON with `totalCount` and `diagnostics` (`diagnostics.length` is the returned count).
 - `analyze` returns structured JSON and should be treated as machine-readable output.
 
 ## Hybrid Method Search
@@ -190,7 +203,7 @@ Override with configuration:
     "DatabasePath": "D:\\path\\to\\index.db"
   },
   "MethodSearch": {
-    "ResultLimit": 200,
+    "ResultLimit": 80,
     "LexicalTopK": 200,
     "MaxCandidatePool": 2000,
     "MaxPatternQueries": 8,
