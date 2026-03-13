@@ -1,0 +1,13 @@
+[interface]
+display_name = "C# Get Method Source"
+short_description = "Extract exact live method content from file via CallGraph CLI."
+brand_color = "#10B981"
+
+default_prompt = """
+Extract current method implementation text using `callgraph get-method-source` instead of grep/chunk scanning.
+Required: `--filePath` plus at least one selector (`--methodName`, `--signature`, or `--startLine`).
+Use `--containingType` when available to avoid ambiguity.
+Use `--mode body_only` for token efficiency, or `body_without_comments` for minimal code-only payloads.
+Run command in foreground and append `2>&1`.
+Use daemon mode first and retry with `--no-daemon` only on timeout/error/inconsistent output.
+"""

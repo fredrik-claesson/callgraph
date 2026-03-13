@@ -1,5 +1,6 @@
 using CallGraph.Core.Analysis;
 using CallGraph.Core.Diagnostics;
+using CallGraph.Core.Extraction;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
 using CallGraph.Core.Search;
@@ -59,6 +60,7 @@ public static class CallGraphComposition
         services.AddSingleton<IGraphAnalyzer, GraphAnalyzer>();
 
         services.AddSingleton<IDiagnosticCollector, DiagnosticCollector>();
+        services.AddSingleton<IMethodSourceExtractor, MethodSourceExtractor>();
 
         // Register watcher services in all modes so CLI daemon (`serve`) can opt into watching
         // without requiring hosted-service startup. Hosted registration stays conditional below.

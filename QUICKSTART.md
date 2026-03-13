@@ -55,10 +55,13 @@ callgraph list-solutions   # auto-starts daemon on first call
 # Search file/method
 callgraph search-file --pattern "*Controller.cs"
 callgraph search-method --keywords "login authentication"
-callgraph list-methods --solutionPath "/abs/path/to/solution.sln"   # defaults to --visibility external
+callgraph list-methods --solutionPath "/abs/path/to/solution.sln"   # defaults to --visibility external; signatures are refreshed live
 
 # Analyze call graph
 callgraph analyze --filepath "/abs/path/to/File.cs" --depth 1 --direction bi-directional --visibility external
+
+# Extract exact live method content from file
+callgraph get-method-source --filePath "/abs/path/to/File.cs" --methodName "GetBalanceAccountAsync" --containingType "Demo.AdyenBalanceCommunicationComponent" --mode body_only
 
 # Diagnostics
 callgraph list-unused --projectPath "/abs/path/to/MyProject.csproj" --filePath "/abs/path/to/File.cs"
@@ -70,6 +73,7 @@ Output notes:
 - `search-method` and `list-methods`: plain text rows
   `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`
 - `analyze`: structured JSON
+- `get-method-source`: structured JSON with line/byte spans and selected method content
 
 ## Optional daemon control
 

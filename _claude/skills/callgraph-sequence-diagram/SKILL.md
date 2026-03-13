@@ -22,6 +22,7 @@ agent: callgraph-haiku
 ## Scope rule
 - Use the provided `filepath` directly and keep analysis scoped to that file.
 - Do not broaden to project-wide discovery unless resolving an explicit ambiguity.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
 
 ## Error handling
 - **IndexNotReady**: Instruct user to run CLI with `--index`/`--reindex`

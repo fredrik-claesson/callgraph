@@ -26,6 +26,7 @@ internal static class CliCommandLine
               callgraph search-method --keywords <keywords> [--regex] [--pattern <pattern>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
               callgraph list-methods [--visibility <external|internal>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <path>] [--filePath <path>] [--no-daemon]
               callgraph analyze --filepath <file.cs> [--method <name>] [--depth <n>] [--direction <inbound|outbound|bi-directional>] [--visibility <external|internal>] [--solutionPath <path>] [--solutionId <id>] [--no-daemon]
+              callgraph get-method-source --filePath <file.cs> [--methodName <name>] [--containingType <type>] [--signature <signature>] [--startLine <n>] [--mode <signature_only|signature_plus_body|body_only|body_without_comments>] [--no-daemon]
               callgraph list-unused --projectPath <project.csproj> --filePath <file.cs> [--no-daemon]
               callgraph list-warnings --projectPath <project.csproj> --filePath <file.cs> [--no-daemon]
 
@@ -48,7 +49,8 @@ internal static class CliCommandLine
               - search-file outputs plain text (one file path per line).
               - search-method/list-methods output plain text rows: <filePath[:line]>\t<containingType>\t<methodName>\t<signature>.
               - analyze output is structured JSON.
-              - list-methods defaults to --visibility external (public/protected/protected internal).
+              - get-method-source output is structured JSON with exact line/byte span and selected method content.
+              - list-methods defaults to --visibility external (public/protected/protected internal), and refreshes listed signatures from live source.
               - list-unused/list-warnings require both --projectPath and --filePath.
               - filePath must be an absolute path to a .cs file.
             """);

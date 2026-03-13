@@ -68,6 +68,12 @@ callgraph search-method --keywords "login authentication" --solutionId "solution
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, pass `--folderPath <folder>` before searching project-wide.
 - Prefer adding scope before broadening keyword sets.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+
+## Live source follow-up
+- After selecting a method match, use `callgraph get-method-source` to read implementation text:
+  `callgraph get-method-source --filePath <file.cs> --methodName <name> --containingType <type> --startLine <line> --mode body_only 2>&1`
+- Prefer `--mode body_only` or `body_without_comments` for token-efficient extraction.
 
 ## Output
 - Show ranked list of matches (type + display + file + line)

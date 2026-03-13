@@ -1,6 +1,6 @@
 # /callgraph-list-methods
 
-List indexed C# methods using CallGraph CLI with visibility filtering.
+List C# methods using CallGraph CLI with live signature refresh and visibility filtering.
 
 ## Command execution policy
 - Run commands in foreground only and always append `2>&1`.
@@ -17,6 +17,9 @@ List indexed C# methods using CallGraph CLI with visibility filtering.
 - If the containing file is known, include `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, include `--folderPath <folder>` before listing project-wide.
 - Use project-wide method listing only when explicitly requested.
+
+## Live source follow-up
+- After selecting a row, use `/callgraph-get-method-source` to fetch exact method implementation text.
 
 ## Visibility
 - `external` (default): public/protected/protected internal methods only

@@ -8,7 +8,7 @@ CallGraph is a .NET CLI tool that indexes C# solutions with Roslyn and stores a 
 - Inbound/outbound/bi-directional call graph traversal
 - Indexed file and method search
 - Hybrid method search: soft OR lexical retrieval + soft AND lexical ranking, then top-N semantic rerank (local bge-small-en-v1.5)
-- Indexed method listing with external/internal visibility filter
+- Method listing with live signature refresh and external/internal visibility filter
 - Warning and unused diagnostics for projects
 - Incremental reindexing with file watching
 
@@ -89,6 +89,9 @@ callgraph list-methods [--visibility external|internal] [--solutionPath /path/to
 # Analyze call graph for file/method
 callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>]
 
+# Extract live method source from a known file
+callgraph get-method-source --filePath /abs/file.cs [--methodName MethodName] [--containingType Namespace.Type] [--signature "Task Foo(string x)"] [--startLine 123] [--mode signature_only|signature_plus_body|body_only|body_without_comments]
+
 # List unused diagnostics (file-scoped; required)
 callgraph list-unused --projectPath /abs/project.csproj --filePath /abs/file.cs
 
@@ -105,7 +108,9 @@ Notes:
 - `search-file`: one file path per line.
 - `search-method`/`list-methods`: one match per line as tab-separated fields:
   `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
-- `list-methods` defaults to `--visibility external` (public/protected/protected internal). Use `--visibility internal` to include all methods.
+- `get-method-source` returns structured JSON with the selected method content plus exact line/byte span.
+- `get-method-source --mode` supports `signature_only`, `signature_plus_body` (default), `body_only`, and `body_without_comments`.
+- `list-methods` defaults to `--visibility external` (public/protected/protected internal), and refreshes listed signatures from live source before output. Use `--visibility internal` to include all methods.
 - `list-unused` and `list-warnings` require both `--projectPath` and `--filePath`.
 - `--filePath` must be absolute and point to a `.cs` file.
 - Diagnostic commands return structured raw JSON with `totalCount`, `returnedCount`, `truncated`, and `diagnostics`.

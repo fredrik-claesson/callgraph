@@ -39,6 +39,12 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, pass `--folderPath <folder>` before searching wider scopes.
 - Prefer adding scope before broadening keyword sets.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+
+## Live source follow-up
+- After selecting a method, fetch exact implementation text with:
+  `callgraph get-method-source --filePath <file.cs> --methodName <name> --containingType <type> --startLine <line> --mode body_only`
+- Prefer `body_only` or `body_without_comments` for token-efficient responses.
 
 ## Action
 Run CLI:

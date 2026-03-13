@@ -31,6 +31,7 @@ callgraph analyze --filepath "C:\path\to\file.cs" --method "MethodName" --depth 
 - If the target file is known, run `callgraph analyze` directly for that file.
 - Do not run broader repo/project discovery first unless the user explicitly asks for it.
 - If user provides class + method but not file, resolve file first via `search-file --pattern "*<ClassName>.cs"` before `analyze`.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
 
 ## Visibility (depth strategy)
 Both modes traverse ALL edges including private/internal methods:

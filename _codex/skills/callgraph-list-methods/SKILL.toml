@@ -1,10 +1,11 @@
 [interface]
-display_name = "C# List Methods (Indexed)"
-short_description = "List indexed methods via CallGraph CLI with visibility filter."
+display_name = "C# List Methods (Live)"
+short_description = "List methods via CallGraph CLI with live signature refresh."
 brand_color = "#F59E0B"
 
 default_prompt = """
-List methods using CallGraph CLI command `callgraph list-methods`. Use visibility=external by default (public/protected/protected internal). Use visibility=internal only when non-public methods are explicitly requested. Prefer filePath or folderPath scoping when available. Output is plain text, one match per line: `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
+List methods using CallGraph CLI command `callgraph list-methods`. Use visibility=external by default (public/protected/protected internal). Use visibility=internal only when non-public methods are explicitly requested. Prefer filePath or folderPath scoping when available. Method signatures are refreshed from live source before output. Output is plain text, one match per line: `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
+When implementation text is needed for a selected row, use `callgraph get-method-source` with filePath + methodName + containingType + startLine (prefer `--mode body_only`).
 Execution policy: run foreground command with `2>&1`, use daemon first, retry with `--no-daemon` only on timeout/error/inconsistent output.
 Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.
 

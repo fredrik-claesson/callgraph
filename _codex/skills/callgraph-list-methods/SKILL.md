@@ -1,12 +1,12 @@
 ---
 name: callgraph-list-methods
-description: List indexed C# methods via CallGraph CLI with visibility filtering.
+description: List live C# methods via CallGraph CLI with visibility filtering.
 metadata:
-  short-description: "Indexed method listing (CLI)"
+  short-description: "Live method listing (CLI)"
 ---
 
 ## Why this skill
-Returns a method inventory from the prebuilt CallGraph index without scanning source files. Useful when no name pattern is available.
+Returns a method inventory with live signature refresh from source files. Use this when no method-name pattern is available.
 
 ## Tool
 Use CLI command: `callgraph list-methods`
@@ -25,6 +25,11 @@ callgraph list-methods --visibility external --solutionId "solution-id"
 ## Scope rule
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, pass `--folderPath <folder>` before listing project-wide.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+
+## Live source follow-up
+- Use `callgraph get-method-source` to fetch exact implementation text for a selected row:
+  `callgraph get-method-source --filePath <file.cs> --methodName <name> --containingType <type> --startLine <line> --mode body_only 2>&1`
 
 ## Visibility
 - `external`: public/protected/protected internal methods only.

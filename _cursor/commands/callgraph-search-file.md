@@ -20,6 +20,7 @@ Find C# files by path using the CallGraph index (fast) via CLI.
 - If only part of the path/name is known, keep the pattern as narrow as possible to avoid broad result sets.
 - If no match, broaden pattern/scope incrementally in sequential retries.
 - Do not run parallel/background search-file triangulation unless user explicitly asks.
+- Once file and method are known, use `/callgraph-get-method-source` for exact live implementation extraction.
 
 ## Action
 Run CLI:

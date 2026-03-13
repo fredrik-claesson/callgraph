@@ -4,11 +4,14 @@ using System.Text.RegularExpressions;
 using CallGraph.Contracts;
 using CallGraph.Core.Analysis;
 using CallGraph.Core.Diagnostics;
+using CallGraph.Core.Extraction;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Output;
 using CallGraph.Core.Search;
 using CallGraph.Core.Solutions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using ContractDiagnostic = CallGraph.Contracts.Diagnostic;
 
@@ -25,6 +28,7 @@ internal sealed class ToolCommandExecutor
         "search-method",
         "list-methods",
         "analyze",
+        "get-method-source",
         "list-unused",
         "list-warnings"
     };
@@ -37,6 +41,7 @@ internal sealed class ToolCommandExecutor
         "search-method",
         "list-methods",
         "analyze",
+        "get-method-source",
         "list-unused",
         "list-warnings"
     };
@@ -67,6 +72,7 @@ internal sealed class ToolCommandExecutor
 
         var graphAnalyzer = _services.GetRequiredService<IGraphAnalyzer>();
         var diagnosticCollector = _services.GetRequiredService<IDiagnosticCollector>();
+        var methodSourceExtractor = _services.GetRequiredService<IMethodSourceExtractor>();
         var hybridMethodSearch = _services.GetRequiredService<IHybridMethodSearchService>();
         var solutionLoader = _services.GetRequiredService<ISolutionLoader>();
         var solutionContextCache = _services.GetRequiredService<ISolutionContextCache>();
@@ -191,18 +197,23 @@ internal sealed class ToolCommandExecutor
                 if (validateError is not null)
                     return ToolExecutionResult.FromError(validateError);
 
-                var matches = await _indexStore
-                    .ListMethodsAsync(visibility, solutionPath, solutionId, folderPath, filePath, cancellationToken)
+                const int limit = 200;
+                var liveMatches = await BuildLiveListMethodMatchesAsync(
+                        visibility,
+                        solutionPath,
+                        solutionId,
+                        folderPath,
+                        filePath,
+                        cancellationToken)
                     .ConfigureAwait(false);
 
-                const int limit = 200;
-                if (matches.Count > limit)
+                if (liveMatches.Count > limit)
                 {
                     return ToolExecutionResult.FromError(
-                        $"List returned {matches.Count} results (limit {limit}). Narrow scope with --solutionPath/--solutionId and --folderPath/--filePath.");
+                        $"List returned {liveMatches.Count} results (limit {limit}). Narrow scope with --solutionPath/--solutionId and --folderPath/--filePath.");
                 }
 
-                var response = ToolResponseMapper.ToSearchMethodResponse(matches);
+                var response = ToolResponseMapper.ToSearchMethodResponse(liveMatches);
                 return ToolExecutionResult.FromText(ToolTextFormatter.FormatSearchMethods(response));
             }
             case "analyze":
@@ -238,6 +249,54 @@ internal sealed class ToolCommandExecutor
                     : new { error = result.Error };
 
                 return ToolExecutionResult.FromPayload(payload, JsonOutputOptions);
+            }
+            case "get-method-source":
+            {
+                if (!TryGetRequired(tool.Options, "filePath", out var filePath, out var filePathError))
+                    return ToolExecutionResult.FromError(filePathError!);
+
+                if (!Path.IsPathRooted(filePath))
+                    return ToolExecutionResult.FromError("filePath must be an absolute path.");
+
+                if (!filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                    return ToolExecutionResult.FromError("filePath must point to a .cs file.");
+
+                var mode = CliInputHelpers.TryGetString(tool.Options, "mode");
+                var methodName = CliInputHelpers.TryGetString(tool.Options, "methodName");
+                var containingType = CliInputHelpers.TryGetString(tool.Options, "containingType");
+                var signature = CliInputHelpers.TryGetString(tool.Options, "signature");
+                var startLine = CliInputHelpers.TryGetInt(tool.Options, "startLine", out var startLineError);
+                if (startLineError is not null)
+                    return ToolExecutionResult.FromError(startLineError);
+
+                var extraction = await methodSourceExtractor
+                    .ExtractAsync(
+                        new MethodSourceExtractionRequest(
+                            FilePath: filePath,
+                            MethodName: methodName,
+                            ContainingType: containingType,
+                            Signature: signature,
+                            StartLine: startLine,
+                            Mode: mode ?? "signature_plus_body"),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!extraction.Success)
+                {
+                    if (extraction.Candidates is { Count: > 0 })
+                    {
+                        var candidateLines = string.Join(
+                            Environment.NewLine,
+                            extraction.Candidates.Select(c =>
+                                $"{c.StartLine}-{c.EndLine}\t{c.ContainingType ?? "-"}\t{c.MethodName}\t{c.Signature}"));
+
+                        return ToolExecutionResult.FromError($"{extraction.Error}{Environment.NewLine}{candidateLines}");
+                    }
+
+                    return ToolExecutionResult.FromError(extraction.Error ?? "Failed to extract method source.");
+                }
+
+                return ToolExecutionResult.FromPayload(extraction.Match!, JsonOutputOptions);
             }
             case "list-unused":
             {
@@ -626,6 +685,234 @@ internal sealed class ToolCommandExecutor
     private sealed record WarningDiagnosticsCacheEntry(
         DateTime CreatedUtc,
         IReadOnlyList<ContractDiagnostic> Diagnostics);
+
+    private async Task<IReadOnlyList<SearchMethodMatch>> BuildLiveListMethodMatchesAsync(
+        string visibility,
+        string? solutionPath,
+        string? solutionId,
+        string? folderPath,
+        string? filePath,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            var normalizedFilePath = Path.GetFullPath(filePath);
+            if (!File.Exists(normalizedFilePath))
+                return Array.Empty<SearchMethodMatch>();
+
+            var nodes = await ListLiveMethodNodesInFileAsync(normalizedFilePath, visibility, cancellationToken).ConfigureAwait(false);
+            var (resolvedSolutionId, resolvedSolutionPath) = await ResolveSolutionIdentityForFileAsync(
+                normalizedFilePath,
+                solutionPath,
+                solutionId,
+                cancellationToken).ConfigureAwait(false);
+
+            return nodes
+                .Select(node => new SearchMethodMatch(resolvedSolutionId, resolvedSolutionPath, node))
+                .OrderBy(match => match.Method.FilePath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(match => match.Method.StartLine ?? int.MaxValue)
+                .ToList();
+        }
+
+        var discoveryMatches = await _indexStore
+            .ListMethodsAsync("internal", solutionPath, solutionId, folderPath, filePath, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (discoveryMatches.Count == 0)
+            return Array.Empty<SearchMethodMatch>();
+
+        var fileToSolutionMap = new Dictionary<string, (string SolutionId, string SolutionPath)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var match in discoveryMatches)
+        {
+            var candidateFilePath = match.Method.FilePath;
+            if (string.IsNullOrWhiteSpace(candidateFilePath) ||
+                !Path.IsPathRooted(candidateFilePath))
+            {
+                continue;
+            }
+
+            if (fileToSolutionMap.ContainsKey(candidateFilePath))
+                continue;
+
+            fileToSolutionMap[candidateFilePath] = (match.SolutionId, match.SolutionPath);
+        }
+
+        var liveMatches = new List<SearchMethodMatch>();
+        foreach (var (candidateFilePath, solution) in fileToSolutionMap)
+        {
+            if (!File.Exists(candidateFilePath))
+                continue;
+
+            var nodes = await ListLiveMethodNodesInFileAsync(candidateFilePath, visibility, cancellationToken).ConfigureAwait(false);
+            foreach (var node in nodes)
+            {
+                liveMatches.Add(new SearchMethodMatch(solution.SolutionId, solution.SolutionPath, node));
+            }
+        }
+
+        return liveMatches
+            .OrderBy(match => match.Method.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(match => match.Method.StartLine ?? int.MaxValue)
+            .ToList();
+    }
+
+    private async Task<(string SolutionId, string SolutionPath)> ResolveSolutionIdentityForFileAsync(
+        string filePath,
+        string? solutionPath,
+        string? solutionId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(solutionId))
+        {
+            var solution = await _indexStore.GetSolutionByIdAsync(solutionId, cancellationToken).ConfigureAwait(false);
+            return (solutionId, solution?.SolutionPath ?? string.Empty);
+        }
+
+        if (!string.IsNullOrWhiteSpace(solutionPath))
+        {
+            var normalizedSolutionPath = Path.GetFullPath(solutionPath);
+            var solution = await _indexStore.GetSolutionByPathAsync(normalizedSolutionPath, cancellationToken).ConfigureAwait(false);
+            return (solution?.SolutionId ?? string.Empty, normalizedSolutionPath);
+        }
+
+        var solutions = await _indexStore.FindSolutionsByFilePathAsync(filePath, cancellationToken).ConfigureAwait(false);
+        if (solutions.Count == 1)
+            return (solutions[0].SolutionId, solutions[0].SolutionPath);
+
+        return (string.Empty, string.Empty);
+    }
+
+    private static async Task<IReadOnlyList<Node>> ListLiveMethodNodesInFileAsync(
+        string filePath,
+        string visibility,
+        CancellationToken cancellationToken)
+    {
+        var source = await File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, path: filePath, cancellationToken: cancellationToken);
+        var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+
+        var methods = new List<Node>();
+        foreach (var declaration in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
+        {
+            var accessibility = GetMethodAccessibility(declaration);
+            if (!IsVisibilityMatch(accessibility, visibility))
+                continue;
+
+            var signature = ExtractSignatureText(declaration, source);
+            if (string.IsNullOrWhiteSpace(signature))
+                continue;
+
+            var lineSpan = syntaxTree.GetLineSpan(declaration.Span);
+            var startLine = lineSpan.StartLinePosition.Line + 1;
+            var methodName = ExtractMethodName(declaration);
+
+            methods.Add(new Node
+            {
+                Id = $"{filePath}:{startLine}:{methodName}",
+                Kind = "method",
+                Display = signature.TrimEnd(),
+                ContainingType = ExtractContainingType(declaration),
+                FilePath = filePath,
+                StartLine = startLine,
+                Accessibility = accessibility
+            });
+        }
+
+        return methods;
+    }
+
+    private static bool IsVisibilityMatch(string accessibility, string visibility)
+    {
+        if (string.Equals(visibility, "internal", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return accessibility switch
+        {
+            "public" => true,
+            "protected" => true,
+            "protected internal" => true,
+            _ => false
+        };
+    }
+
+    private static string GetMethodAccessibility(BaseMethodDeclarationSyntax declaration)
+    {
+        if (declaration.Ancestors().OfType<InterfaceDeclarationSyntax>().Any())
+            return "public";
+
+        var modifiers = declaration.Modifiers.Select(m => m.ValueText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (modifiers.Contains("public"))
+            return "public";
+
+        if (modifiers.Contains("protected") && modifiers.Contains("internal"))
+            return "protected internal";
+
+        if (modifiers.Contains("private") && modifiers.Contains("protected"))
+            return "private protected";
+
+        if (modifiers.Contains("protected"))
+            return "protected";
+
+        if (modifiers.Contains("internal"))
+            return "internal";
+
+        if (modifiers.Contains("private"))
+            return "private";
+
+        return "private";
+    }
+
+    private static string ExtractSignatureText(BaseMethodDeclarationSyntax declaration, string source)
+    {
+        var signatureEnd = declaration.Span.End;
+
+        if (declaration.Body is not null)
+            signatureEnd = declaration.Body.Span.Start;
+        else if (declaration.ExpressionBody is not null)
+            signatureEnd = declaration.ExpressionBody.Span.Start;
+
+        if (signatureEnd <= declaration.Span.Start)
+            return string.Empty;
+
+        return source.Substring(declaration.Span.Start, signatureEnd - declaration.Span.Start);
+    }
+
+    private static string ExtractMethodName(BaseMethodDeclarationSyntax declaration)
+    {
+        return declaration switch
+        {
+            MethodDeclarationSyntax method => method.Identifier.ValueText,
+            ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
+            DestructorDeclarationSyntax destructor => destructor.Identifier.ValueText,
+            OperatorDeclarationSyntax @operator => $"operator {@operator.OperatorToken.ValueText}",
+            ConversionOperatorDeclarationSyntax conversion => $"operator {conversion.Type}",
+            _ => declaration.GetType().Name
+        };
+    }
+
+    private static string? ExtractContainingType(BaseMethodDeclarationSyntax declaration)
+    {
+        var typeNames = declaration.Ancestors()
+            .OfType<BaseTypeDeclarationSyntax>()
+            .Select(type => type.Identifier.ValueText)
+            .Reverse()
+            .ToList();
+
+        if (typeNames.Count == 0)
+            return null;
+
+        var namespaceParts = declaration.Ancestors()
+            .OfType<BaseNamespaceDeclarationSyntax>()
+            .Select(namespaceDeclaration => namespaceDeclaration.Name.ToString())
+            .Reverse()
+            .ToList();
+
+        var typeChain = string.Join('.', typeNames);
+        if (namespaceParts.Count == 0)
+            return typeChain;
+
+        return $"{string.Join('.', namespaceParts)}.{typeChain}";
+    }
 }
 
 internal sealed record ToolExecutionResult(int ExitCode, string? Stdout, string? Stderr)

@@ -11,7 +11,8 @@ You are a fast lookup agent for the CallGraph index. Keep outputs short, factual
 - `callgraph list-solutions`: List indexed solutions
 - `callgraph search-file`: Find files by wildcard/regex path
 - `callgraph search-method`: Find methods by wildcard/regex name
-- `callgraph list-methods`: List indexed methods with visibility filtering (`external` default)
+- `callgraph list-methods`: List methods with live signature refresh and visibility filtering (`external` default)
+- `callgraph get-method-source`: Extract exact live method content from a known file
 - `callgraph analyze`: Analyze call graphs (inbound/outbound/bi-directional)
 - `callgraph list-unused`: List unused code diagnostics for a project
 - `callgraph list-warnings`: List warning diagnostics for a project
@@ -48,6 +49,7 @@ You are a fast lookup agent for the CallGraph index. Keep outputs short, factual
 
 ## Command hygiene
 - For `search-file`, `search-method`, and `analyze`, run in foreground only.
+- For method-content reads, prefer `callgraph get-method-source` over grep/chunk scanning.
 - Append `2>&1` to all CallGraph CLI commands.
 - Use daemon mode first for latency: `callgraph <command> ... 2>&1`.
 - Retry once with `--no-daemon` only if daemon attempt times out, errors, or looks inconsistent:

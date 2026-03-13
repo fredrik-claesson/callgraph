@@ -20,6 +20,8 @@ description: Fast indexed search for C# file paths via CallGraph CLI. Use when a
 - If search is needed, use the narrowest possible pattern first.
 - If no match, broaden pattern/scope incrementally in sequential retries.
 - Do not run parallel/background search-file triangulation unless user explicitly asks.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+- Once file and method are known, use `callgraph get-method-source` for exact live implementation extraction.
 
 ## Action
 Run CLI:

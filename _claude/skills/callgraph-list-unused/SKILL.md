@@ -16,6 +16,7 @@ description: List unused code diagnostics for a C# project via CallGraph CLI. Us
 ## Scope rule
 - Hard requirement: always provide both `--projectPath` and `--filePath`.
 - `--folderPath` is not supported for this command.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
 
 ## Command construction rules
 - Never emit `--filePath` without a non-empty value.

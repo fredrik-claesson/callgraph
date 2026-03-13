@@ -24,6 +24,7 @@ Parse the user request for:
 - If the target file is known, run `callgraph analyze` directly on that file.
 - Do not perform broader discovery/search first unless the user explicitly asks for it.
 - If user provides class + method but no file path, resolve file first with `search-file --pattern "*<ClassName>.cs"`.
+- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
 
 ## Visibility (depth strategy)
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.

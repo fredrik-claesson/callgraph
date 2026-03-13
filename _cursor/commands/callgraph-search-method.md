@@ -42,6 +42,10 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 - Use broad project-wide method searches only when explicitly requested.
 - Prefer adding scope before broadening keyword sets.
 
+## Live source follow-up
+- After selecting a method row, use `/callgraph-get-method-source` to fetch exact implementation text.
+- Prefer `--mode body_only` or `--mode body_without_comments` for token-efficient reads.
+
 ## Action
 Run CLI:
 `callgraph search-method --pattern <pattern> [--keywords <keywords>] [--regex] [--solutionPath <path>] [--solutionId <id>] [--folderPath <folder>] [--filePath <file.cs>]`
