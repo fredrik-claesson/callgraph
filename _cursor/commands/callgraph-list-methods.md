@@ -15,6 +15,7 @@ List C# methods using CallGraph CLI with live signature refresh and visibility f
 
 ## Scope rule
 - If the containing file is known, include `--filePath <file.cs>` to keep results file-scoped.
+- If you need multiple specific files, include `--fileList <path>` (newline-delimited absolute `.cs` paths) instead of shell `for` loops.
 - If only a folder is known, include `--folderPath <folder>` before listing project-wide.
 - Use project-wide method listing only when explicitly requested.
 
@@ -27,7 +28,7 @@ List C# methods using CallGraph CLI with live signature refresh and visibility f
 
 ## Action
 Run CLI:
-`callgraph list-methods [--visibility <external|internal>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <folder>] [--filePath <file.cs>]`
+`callgraph list-methods [--visibility <external|internal>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <folder>] [--filePath <file.cs>] [--fileList <path>]`
 
 ## Output
 - Show ranked list of methods (type + display + file + line + accessibility)

@@ -14,6 +14,7 @@ Use this after method discovery to fetch exact implementation text from current 
   `callgraph get-method-source ... 2>&1`
 - Retry only on timeout/error/inconsistent output:
   `callgraph get-method-source ... --no-daemon 2>&1`
+- Do not chain multiple `callgraph get-method-source` calls using `&&`/`;` in one command. Run one request per command and synthesize after.
 
 ## Required input
 - `--filePath <absolute .cs file>`

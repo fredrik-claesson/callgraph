@@ -40,6 +40,49 @@ public static class ToolTextFormatter
         return sb.ToString();
     }
 
+    public static string FormatAnalyze(AnalyzeToolResponse response)
+    {
+        if (response.Methods.Count == 0 && response.Calls.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < response.Methods.Count; i++)
+        {
+            var method = response.Methods[i];
+            var location = BuildLocation(method.FilePath, method.StartLine);
+            var containingType = string.IsNullOrWhiteSpace(method.ContainingType) ? "-" : method.ContainingType;
+            var methodName = string.IsNullOrWhiteSpace(method.MethodName) ? "-" : method.MethodName;
+
+            sb.Append("M\t")
+                .Append(method.MethodId)
+                .Append('\t')
+                .Append(location)
+                .Append('\t')
+                .Append(containingType)
+                .Append('\t')
+                .Append(methodName);
+
+            sb.AppendLine();
+        }
+
+        for (var i = 0; i < response.Calls.Count; i++)
+        {
+            var call = response.Calls[i];
+            sb.Append("C\t")
+                .Append(call.CallerMethodId)
+                .Append('\t')
+                .Append(call.CalleeMethodId)
+                .Append('\t')
+                .Append(call.Direction);
+
+            if (i < response.Calls.Count - 1)
+                sb.AppendLine();
+        }
+
+        return sb.ToString().TrimEnd('\r', '\n');
+    }
+
     private static string BuildLocation(string? filePath, int? startLine)
     {
         var path = string.IsNullOrWhiteSpace(filePath) ? "-" : filePath;

@@ -96,7 +96,7 @@ callgraph search-method --keywords "login authentication" [--regex] [--pattern <
 callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
 
 # List methods (visibility defaults to external)
-callgraph list-methods [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
+callgraph list-methods [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs] [--fileList /abs/files.txt]
 
 # Analyze call graph for file/method
 callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>]
@@ -121,13 +121,15 @@ Notes:
 - `search-file`: one file path per line.
 - `search-method`/`list-methods`: one match per line as tab-separated fields:
   `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
+- `analyze`: plain text, line-based rows:
+  - methods: `M\t<methodId>\t<filePath[:line]>\t<containingType>\t<methodName>`
+  - calls: `C\t<callerMethodId>\t<calleeMethodId>\t<direction>`
 - `get-method-source` returns structured JSON with the selected method content plus exact line/byte span.
 - `get-method-source --mode` supports `signature_only`, `signature_plus_body` (default), `body_only`, and `body_without_comments`.
 - `list-methods` defaults to `--visibility external` (public/protected/protected internal), and refreshes listed signatures from live source before output. Use `--visibility internal` to include all methods.
 - `list-unused` and `list-warnings` require both `--projectPath` and `--filePath`.
 - `--filePath` must be absolute and point to a `.cs` file.
 - Diagnostic commands return structured raw JSON with `totalCount` and `diagnostics` (`diagnostics.length` is the returned count).
-- `analyze` returns structured JSON and should be treated as machine-readable output.
 
 ## Hybrid Method Search
 

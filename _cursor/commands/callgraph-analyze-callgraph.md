@@ -27,6 +27,10 @@ Parse the user text after the command as:
 Both modes traverse ALL edges including private/internal methods:
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.
 - `internal`: Method-based depth. Every call increments depth. Use for detailed tracing.
+- Safety cap: when using `internal`, depth must be `<= 2`.
+- If deeper tracing is needed, use two-stage analysis:
+  1. map callers first with `--direction inbound --visibility external --depth 2`,
+  2. pick 1-3 candidates and run `--direction outbound --visibility internal --depth 2` per candidate.
 
 ## Action
 Run CLI:
@@ -41,18 +45,10 @@ Run CLI:
 ## Output
 Summarize node/edge counts and key inbound/outbound calls.
 
-## Response format (raw JSON, reduced details)
-- `methodCount`: number of methods returned
-- `callCount`: number of call edges returned
-- `methods`: array of:
-  - `methodId` (short ID, e.g. `m1`, `m2`)
-  - `methodName`
-  - `containingType`
-  - `filePath`
-  - `startLine`
-- `calls`: array of:
-  - `callerMethodId`
-  - `calleeMethodId`
-  - `direction` (`inbound`/`outbound`)
+## Response format (line-based)
+- Method rows:
+  - `M\t<methodId>\t<filePath[:line]>\t<containingType>\t<methodName>`
+- Call rows:
+  - `C\t<callerMethodId>\t<calleeMethodId>\t<direction>`
 
-Use `methods` + `calls` directly. Use this raw response directly.
+Use these rows directly; do not assume JSON output for `analyze`.

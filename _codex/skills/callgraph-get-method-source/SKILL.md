@@ -13,6 +13,7 @@ Returns exact method content from the current file on disk without grep/chunk sc
 Use CLI command: `callgraph get-method-source`
 - Run in foreground and always append `2>&1`.
 - Use daemon mode first, and retry with `--no-daemon` only on timeout/error/inconsistent output.
+- Do not chain multiple `callgraph get-method-source` calls using `&&`/`;` in one command. Run one request per command and synthesize after.
 
 ## Required input
 - `--filePath <absolute .cs file>`

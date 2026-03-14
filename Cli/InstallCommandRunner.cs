@@ -469,7 +469,9 @@ internal static class InstallCommandRunner
                 continue;
             }
 
-            messages.Add($"Manual step: append relevant section from {templatePath} into existing {targetPath}.");
+            messages.Add(
+                $"Manual step: append the full template content from {templatePath} into existing {targetPath}. " +
+                $"Suggested command (review before running): printf '\\n\\n' >> \"{targetPath}\" && cat \"{templatePath}\" >> \"{targetPath}\"");
         }
 
         return messages;

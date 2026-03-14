@@ -24,6 +24,7 @@ callgraph list-methods --visibility external --solutionId "solution-id"
 
 ## Scope rule
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
+- If you need multiple specific files, pass `--fileList <path>` (newline-delimited absolute `.cs` paths) instead of shell `for` loops.
 - If only a folder is known, pass `--folderPath <folder>` before listing project-wide.
 - When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
 

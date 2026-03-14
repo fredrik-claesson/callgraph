@@ -69,6 +69,68 @@ public sealed class CommandRewriteEngineTests
     }
 
     [Fact]
+    public void TryRewrite_LsDirectory_RewritesToSearchFileInFolder()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var rewritten = Rewrite($"ls -la {tempDir}");
+            Assert.Null(rewritten);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TryRewrite_LsPipedToGrep_RewritesToRegexSearchFile()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var rewritten = Rewrite($"ls -la {tempDir} | grep -i reserv | head -20");
+            Assert.Null(rewritten);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TryRewrite_LsCsGlob_RewritesToSearchFileInFolder()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var rewritten = Rewrite($"ls -la {tempDir}/*.cs");
+            Assert.Equal($"callgraph search-file --pattern '*.cs' --folderPath '{tempDir}'", rewritten);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TryRewrite_LsPipedToGrepCs_RewritesToRegexSearchFile()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var rewritten = Rewrite($"ls -la {tempDir} | grep -i \"\\.cs$\" | head -20");
+            Assert.Equal(
+                $"callgraph search-file --regex --pattern '(?i).*\\.cs\\$.*\\.cs$' --folderPath '{tempDir}'",
+                rewritten);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void TryRewrite_GrepRegexInFile_UsesRegexMode()
     {
         var rewritten = Rewrite(

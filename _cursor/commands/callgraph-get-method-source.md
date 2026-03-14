@@ -11,6 +11,7 @@ Extract exact live C# method content from a known file path.
 - Use daemon mode first: `callgraph get-method-source ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph get-method-source ... --no-daemon 2>&1`.
+- Do not chain multiple `callgraph get-method-source` calls using `&&`/`;` in one command. Run one request per command and synthesize after.
 
 ## Inputs
 - Required: `--filePath <absolute .cs file>`

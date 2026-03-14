@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace CallGraph.Cli;
 
@@ -42,6 +43,9 @@ internal static class CommandRewriteEngine
             return true;
 
         if (TryRewriteFind(tokens, out rewritten))
+            return true;
+
+        if (TryRewriteLsListing(tokens, pipelineSegments, out rewritten))
             return true;
 
         if (TryRewriteRgLike(tokens, "rg", out rewritten))
@@ -117,6 +121,59 @@ internal static class CommandRewriteEngine
         }
 
         rewritten = string.Join(" && ", commands);
+        return true;
+    }
+
+    private static bool TryRewriteLsListing(
+        IReadOnlyList<string> firstSegmentTokens,
+        IReadOnlyList<string> pipelineSegments,
+        out string rewritten)
+    {
+        rewritten = string.Empty;
+
+        if (firstSegmentTokens.Count == 0 || !string.Equals(firstSegmentTokens[0], "ls", StringComparison.Ordinal))
+            return false;
+
+        string? directory = null;
+        for (var i = 1; i < firstSegmentTokens.Count; i++)
+        {
+            var token = firstSegmentTokens[i];
+            if (token.StartsWith("-", StringComparison.Ordinal))
+                continue;
+
+            directory ??= token;
+        }
+
+        if (string.IsNullOrWhiteSpace(directory))
+            return false;
+
+        var absoluteFolder = TryResolveAbsoluteDirectory(directory);
+        if (string.IsNullOrWhiteSpace(absoluteFolder) && LooksLikeCsPattern(directory))
+        {
+            var parent = Path.GetDirectoryName(directory);
+            absoluteFolder = TryResolveAbsoluteDirectory(parent);
+        }
+        if (string.IsNullOrWhiteSpace(absoluteFolder))
+            return false;
+
+        var explicitCsIntent = firstSegmentTokens.Any(LooksLikeCsPattern);
+        var hasGrepFilter = TryParsePipeGrepFilter(pipelineSegments, out var grepPattern, out var ignoreCase);
+        var grepHasCsIntent = hasGrepFilter && LooksLikeCsPattern(grepPattern);
+
+        if (!explicitCsIntent && !grepHasCsIntent)
+            return false;
+
+        if (hasGrepFilter && !string.IsNullOrWhiteSpace(grepPattern))
+        {
+            var escaped = Regex.Escape(grepPattern);
+            var regexPattern = ignoreCase
+                ? $"(?i).*{escaped}.*\\.cs$"
+                : $".*{escaped}.*\\.cs$";
+            rewritten = $"callgraph search-file --regex --pattern {ShellQuote(regexPattern)} --folderPath {ShellQuote(absoluteFolder)}";
+            return true;
+        }
+
+        rewritten = $"callgraph search-file --pattern '*.cs' --folderPath {ShellQuote(absoluteFolder)}";
         return true;
     }
 
@@ -265,6 +322,53 @@ internal static class CommandRewriteEngine
 
         pattern = capturedPattern;
         return true;
+    }
+
+    private static bool TryParsePipeGrepFilter(
+        IReadOnlyList<string> pipelineSegments,
+        out string? pattern,
+        out bool ignoreCase)
+    {
+        pattern = null;
+        ignoreCase = false;
+
+        if (pipelineSegments.Count < 2)
+            return false;
+
+        var grepTokens = Tokenize(pipelineSegments[1]);
+        if (grepTokens.Count == 0 || !string.Equals(grepTokens[0], "grep", StringComparison.Ordinal))
+            return false;
+
+        for (var i = 1; i < grepTokens.Count; i++)
+        {
+            var token = grepTokens[i];
+            if (string.Equals(token, "-i", StringComparison.Ordinal) ||
+                string.Equals(token, "--ignore-case", StringComparison.Ordinal))
+            {
+                ignoreCase = true;
+                continue;
+            }
+
+            if (string.Equals(token, "-e", StringComparison.Ordinal) ||
+                string.Equals(token, "--regexp", StringComparison.Ordinal))
+            {
+                if (i + 1 < grepTokens.Count)
+                {
+                    pattern = grepTokens[i + 1];
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (token.StartsWith("-", StringComparison.Ordinal))
+                continue;
+
+            pattern = token;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool ContainsHardControlOperators(string command)

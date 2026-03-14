@@ -249,10 +249,15 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
 
     private List<string> BuildCandidatePatterns(MethodQuery query)
     {
-        if (query.ContainsWildcard)
+        if (query.ContainsWildcard && !ShouldAugmentWildcardPattern(query.RawText))
             return new List<string> { query.RawText };
 
         var patterns = new List<string>();
+
+        if (query.ContainsWildcard && !string.IsNullOrWhiteSpace(query.RawText))
+        {
+            patterns.Add(query.RawText);
+        }
 
         if (!string.IsNullOrWhiteSpace(query.RawText))
         {
@@ -261,7 +266,23 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
                 patterns.Add(phrasePattern);
         }
 
+        if (query.LiteralTokens.Count > 0)
+        {
+            var literalPhrasePattern = "*" + string.Join("*", query.LiteralTokens.Where(static token => token.Length > 0)) + "*";
+            if (!string.Equals(literalPhrasePattern, "**", StringComparison.Ordinal))
+                patterns.Add(literalPhrasePattern);
+        }
+
         var expandedTokens = new HashSet<string>(query.RawTokens, StringComparer.OrdinalIgnoreCase);
+        foreach (var token in query.LiteralTokens)
+        {
+            expandedTokens.Add(token);
+        }
+        if (query.LiteralTokens.Count > 1)
+        {
+            expandedTokens.Add(string.Concat(query.LiteralTokens));
+        }
+
         foreach (var token in query.RawTokens)
         {
             if (!RelatedTerms.TryGetValue(token, out var related))
@@ -291,15 +312,49 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
             .ToList();
     }
 
+    private static bool ShouldAugmentWildcardPattern(string? pattern)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+            return false;
+
+        if (pattern.IndexOfAny(['*', '?']) < 0)
+            return false;
+
+        // Path-like/file-like wildcard patterns should remain strict.
+        if (pattern.Contains('/', StringComparison.Ordinal) ||
+            pattern.Contains('\\', StringComparison.Ordinal) ||
+            pattern.Contains(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Keep strict wildcard semantics for simple prefix/suffix-only patterns.
+        // Augment only when a wildcard appears in the interior, which signals
+        // uncertain token boundaries (e.g. *Hybrid*Search*).
+        for (var i = 0; i < pattern.Length; i++)
+        {
+            var ch = pattern[i];
+            if ((ch == '*' || ch == '?') && i > 0 && i < pattern.Length - 1)
+                return true;
+        }
+
+        var hasPrefixWildcard = pattern.Length > 0 && (pattern[0] == '*' || pattern[0] == '?');
+        var hasSuffixWildcard = pattern.Length > 0 && (pattern[^1] == '*' || pattern[^1] == '?');
+        return hasPrefixWildcard && hasSuffixWildcard;
+    }
+
     private static MethodQuery BuildQuery(string pattern)
     {
         var normalized = NormalizeQueryText(pattern);
+        var literalTokens = SplitLiteralTerms(normalized)
+            .Where(static token => token.Length > 0)
+            .ToList();
         var rawTokens = SplitTokens(normalized)
             .Where(static token => token.Length > 0)
             .ToList();
 
         var canonicalTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var token in rawTokens)
+        foreach (var token in rawTokens.Concat(literalTokens))
         {
             canonicalTokens.Add(CanonicalizeToken(token));
 
@@ -312,16 +367,23 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
             }
         }
 
-        var semanticText = rawTokens.Count > 0
-            ? string.Join(' ', rawTokens.Distinct(StringComparer.OrdinalIgnoreCase))
+        var semanticTextTokens = literalTokens
+            .Concat(rawTokens)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var semanticText = semanticTextTokens.Count > 0
+            ? string.Join(' ', semanticTextTokens)
             : normalized;
         var specificRawTokens = rawTokens
+            .Concat(literalTokens)
             .Where(static token => token.Length >= 6)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return new MethodQuery(
             RawText: pattern,
+            LiteralTokens: literalTokens,
             RawTokens: rawTokens,
             CanonicalTokens: canonicalTokens,
             SemanticText: semanticText,
@@ -448,6 +510,31 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
             .Select(CanonicalizeToken)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    private static IEnumerable<string> SplitLiteralTerms(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            yield break;
+
+        var buffer = new StringBuilder();
+        foreach (var current in text)
+        {
+            if (!char.IsLetterOrDigit(current))
+            {
+                if (buffer.Length == 0)
+                    continue;
+
+                yield return buffer.ToString().ToLowerInvariant();
+                buffer.Clear();
+                continue;
+            }
+
+            buffer.Append(current);
+        }
+
+        if (buffer.Length > 0)
+            yield return buffer.ToString().ToLowerInvariant();
+    }
+
     private static IEnumerable<string> SplitTokens(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -562,6 +649,7 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
 
     private sealed record MethodQuery(
         string RawText,
+        IReadOnlyList<string> LiteralTokens,
         IReadOnlyList<string> RawTokens,
         IReadOnlySet<string> CanonicalTokens,
         string SemanticText,

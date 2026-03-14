@@ -74,7 +74,9 @@ Output notes:
 - `search-file`: plain text, one file path per line
 - `search-method` and `list-methods`: plain text rows
   `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`
-- `analyze`: structured JSON
+- `analyze`: plain text rows
+  - `M\t<methodId>\t<filePath[:line]>\t<containingType>\t<methodName>`
+  - `C\t<callerMethodId>\t<calleeMethodId>\t<direction>`
 - `get-method-source`: structured JSON with line/byte spans and selected method content
 
 ## Optional daemon control

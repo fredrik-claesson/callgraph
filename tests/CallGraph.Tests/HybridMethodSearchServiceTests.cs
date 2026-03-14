@@ -187,6 +187,203 @@ public sealed class HybridMethodSearchServiceTests
         Assert.Equal(methods[0].Method.Id, result[0].Method.Id);
     }
 
+    [Fact]
+    public async Task SearchAsync_KeywordsUseWholeAndSplitTokensForCandidatePatterns()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Mews.Visits.Reservations.ReservationComponent.CheckSkipCleaning()",
+                containingType: "Mews.Visits.Reservations.ReservationComponent",
+                display: "ReservationComponent.CheckSkipCleaning()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new StaticSemanticEmbedder(new[] { 0.0f }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 0,
+                EnableSemanticRerank = false
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "CheckSkipCleaning ReservationComponent",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.NotEmpty(result);
+        Assert.Contains("*checkskipcleaning*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*check*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*reservation*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*check*skip*cleaning*reservation*component*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*checkskipcleaning*reservationcomponent*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WildcardIdentifierPattern_AddsCollapsedTokenVariant()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Mews.Core.Search.HybridSearchService.Execute()",
+                containingType: "Mews.Core.Search.HybridSearchService",
+                display: "HybridSearchService.Execute()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new StaticSemanticEmbedder(new[] { 0.0f }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 0,
+                EnableSemanticRerank = false
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "*Hybrid*Search*",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.NotEmpty(result);
+        Assert.Contains("*Hybrid*Search*", store.NonRegexPatterns, StringComparer.Ordinal);
+        Assert.Contains("*hybridsearch*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*hybrid*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*search*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WildcardPrefixOnly_RemainsStrictPattern()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Mews.Core.Search.HybridSearchService.Execute()",
+                containingType: "Mews.Core.Search.HybridSearchService",
+                display: "HybridSearchService.Execute()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new StaticSemanticEmbedder(new[] { 0.0f }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 0,
+                EnableSemanticRerank = false
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "*HybridSearch",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Single(store.NonRegexPatterns);
+        Assert.Equal("*HybridSearch", store.NonRegexPatterns[0]);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WildcardSuffixOnly_RemainsStrictPattern()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Mews.Core.Search.HybridSearchService.Execute()",
+                containingType: "Mews.Core.Search.HybridSearchService",
+                display: "HybridSearchService.Execute()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new StaticSemanticEmbedder(new[] { 0.0f }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 0,
+                EnableSemanticRerank = false
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "HybridSearch*",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.NotEmpty(result);
+        Assert.Single(store.NonRegexPatterns);
+        Assert.Equal("HybridSearch*", store.NonRegexPatterns[0]);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WildcardPrefixAndSuffix_AugmentsLexicalPatterns()
+    {
+        var methods = new[]
+        {
+            CreateMatch(
+                methodId: "Asm:Mews.Core.Search.HybridSearchService.Execute()",
+                containingType: "Mews.Core.Search.HybridSearchService",
+                display: "HybridSearchService.Execute()")
+        };
+
+        var store = new FilteringIndexStore(methods);
+        var service = new HybridMethodSearchService(
+            store,
+            new StaticSemanticEmbedder(new[] { 0.0f }),
+            Options.Create(new HybridMethodSearchOptions
+            {
+                ResultLimit = 10,
+                LexicalTopK = 10,
+                SemanticWeight = 0,
+                EnableSemanticRerank = false
+            }),
+            NullLogger<HybridMethodSearchService>.Instance);
+
+        var result = await service.SearchAsync(
+            pattern: "*HybridSearch*",
+            useRegex: false,
+            solutionPath: null,
+            solutionId: null,
+            folderPath: null,
+            filePath: null,
+            CancellationToken.None);
+
+        Assert.NotEmpty(result);
+        Assert.Contains("*HybridSearch*", store.NonRegexPatterns, StringComparer.Ordinal);
+        Assert.Contains("*hybridsearch*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*hybrid*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("*search*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static SearchMethodMatch CreateMatch(string methodId, string containingType, string display)
         => new(
             "solution-1",
@@ -302,6 +499,7 @@ public sealed class HybridMethodSearchServiceTests
         }
 
         public int RegexSearchCalls { get; private set; }
+        public List<string> NonRegexPatterns { get; } = [];
 
         public Task<IReadOnlyList<SearchMethodMatch>> SearchMethodsAsync(
             string pattern,
@@ -322,6 +520,7 @@ public sealed class HybridMethodSearchServiceTests
                         regex.IsMatch(match.Method.Display ?? string.Empty)).ToList());
             }
 
+            NonRegexPatterns.Add(pattern);
             var wildcardRegex = WildcardToRegex(pattern);
             return Task.FromResult<IReadOnlyList<SearchMethodMatch>>(
                 _matches.Where(match =>

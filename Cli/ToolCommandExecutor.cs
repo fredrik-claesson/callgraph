@@ -203,8 +203,13 @@ internal sealed class ToolCommandExecutor
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
                 var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
                 var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
+                var fileListPath = CliInputHelpers.TryGetString(tool.Options, "fileList");
 
-                var validateError = ValidateFolderOrFilePathExclusive(folderPath, filePath);
+                var fileList = LoadFileList(fileListPath, out var fileListError);
+                if (fileListError is not null)
+                    return ToolExecutionResult.FromError(fileListError);
+
+                var validateError = ValidateMethodListScopes(folderPath, filePath, fileList);
                 if (validateError is not null)
                     return ToolExecutionResult.FromError(validateError);
 
@@ -215,6 +220,7 @@ internal sealed class ToolCommandExecutor
                         solutionId,
                         folderPath,
                         filePath,
+                        fileList,
                         cancellationToken)
                     .ConfigureAwait(false);
 
@@ -255,11 +261,11 @@ internal sealed class ToolCommandExecutor
                     Visibility: visibility);
 
                 var result = await graphAnalyzer.AnalyzeAsync(request, cancellationToken).ConfigureAwait(false);
-                object payload = result.Graph is not null
-                    ? ToolResponseMapper.ToAnalyzeResponse(result.Graph)
-                    : new { error = result.Error };
+                if (result.Graph is null)
+                    return ToolExecutionResult.FromError(result.Error?.Detail ?? "Analyze failed.");
 
-                return ToolExecutionResult.FromPayload(payload, JsonOutputOptions);
+                var response = ToolResponseMapper.ToAnalyzeResponse(result.Graph);
+                return ToolExecutionResult.FromText(ToolTextFormatter.FormatAnalyze(response));
             }
             case "get-method-source":
             {
@@ -659,6 +665,62 @@ internal sealed class ToolCommandExecutor
         return null;
     }
 
+    private static string? ValidateMethodListScopes(string? folderPath, string? filePath, IReadOnlyList<string> fileList)
+    {
+        var scopeError = ValidateFolderOrFilePathExclusive(folderPath, filePath);
+        if (scopeError is not null)
+            return scopeError;
+
+        var hasFolderPath = !string.IsNullOrWhiteSpace(folderPath);
+        var hasFilePath = !string.IsNullOrWhiteSpace(filePath);
+        var hasFileList = fileList.Count > 0;
+        if ((hasFolderPath && hasFileList) || (hasFilePath && hasFileList))
+            return "Provide only one scope option: --folderPath or --filePath or --fileList.";
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> LoadFileList(string? fileListPath, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(fileListPath))
+            return Array.Empty<string>();
+
+        var normalizedPath = Path.GetFullPath(fileListPath);
+        if (!File.Exists(normalizedPath))
+        {
+            error = $"fileList not found: {fileListPath}";
+            return Array.Empty<string>();
+        }
+
+        var lines = File.ReadAllLines(normalizedPath);
+        var entries = new List<string>(lines.Length);
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i].Trim();
+            if (raw.Length == 0 || raw.StartsWith('#'))
+                continue;
+
+            if (!Path.IsPathRooted(raw))
+            {
+                error = $"fileList line {i + 1}: path must be absolute.";
+                return Array.Empty<string>();
+            }
+
+            if (!raw.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"fileList line {i + 1}: path must point to a .cs file.";
+                return Array.Empty<string>();
+            }
+
+            entries.Add(Path.GetFullPath(raw));
+        }
+
+        return entries
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     private static string? ValidateRequiredCsFilePathForDiagnostics(string? folderPath, string? filePath)
     {
         if (!string.IsNullOrWhiteSpace(folderPath))
@@ -703,8 +765,37 @@ internal sealed class ToolCommandExecutor
         string? solutionId,
         string? folderPath,
         string? filePath,
+        IReadOnlyList<string> fileList,
         CancellationToken cancellationToken)
     {
+        if (fileList.Count > 0)
+        {
+            var fileListMatches = new List<SearchMethodMatch>();
+            foreach (var rawFilePath in fileList)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var normalizedFilePath = Path.GetFullPath(rawFilePath);
+                if (!File.Exists(normalizedFilePath))
+                    continue;
+
+                var nodes = await ListLiveMethodNodesInFileAsync(normalizedFilePath, visibility, cancellationToken).ConfigureAwait(false);
+                var (resolvedSolutionId, resolvedSolutionPath) = await ResolveSolutionIdentityForFileAsync(
+                    normalizedFilePath,
+                    solutionPath,
+                    solutionId,
+                    cancellationToken).ConfigureAwait(false);
+
+                fileListMatches.AddRange(nodes.Select(node =>
+                    new SearchMethodMatch(resolvedSolutionId, resolvedSolutionPath, node)));
+            }
+
+            return fileListMatches
+                .OrderBy(match => match.Method.FilePath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(match => match.Method.StartLine ?? int.MaxValue)
+                .ToList();
+        }
+
         if (!string.IsNullOrWhiteSpace(filePath))
         {
             var normalizedFilePath = Path.GetFullPath(filePath);

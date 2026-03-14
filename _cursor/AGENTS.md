@@ -19,23 +19,43 @@ Command execution policy for CallGraph:
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph <command> ... --no-daemon 2>&1`.
 - Use shell `rg`/`find` only as a last-resort fallback after CallGraph retry still fails to locate targets, and keep fallback to one narrow query.
+- For `callgraph analyze`, if `--visibility internal` is used, `--depth` must be `<= 2`.
+- If deeper internals are needed, use two-stage analysis:
+  1. map callers first with inbound + external depth 2,
+  2. pick 1-3 candidates and run outbound + internal depth 2 per candidate.
 
-# Discovery Playbooks
-Before discovery tool usage, select exactly one playbook and state it in one sentence.
+## Workflow Scenarios
+Select one scenario at the start and state it in one sentence.
 
-## Playbooks
-- `TopDownCallChain`: Start from known entrypoints, run `callgraph-analyze-callgraph` outbound depth 2, then inspect only matched methods.
-- `PatternSweep`: Run broad `callgraph-search-method`/`callgraph-search-file` to find candidates, then narrow with `callgraph-list-methods` and method-source reads.
-- `Hybrid` (default): Quick `PatternSweep` shortlist, then `TopDownCallChain` verification on shortlist.
+`TopDownCallChain` (outbound-first): starting from a known entrypoint method, run
+`callgraph-analyze-callgraph` outbound with `visibility=external` first, then
+`visibility=internal` where needed; walk depth-by-depth until side effects/sinks,
+collecting `method -> direct callees -> important awaits/state changes`.
 
-## Selection Rules
-- Known stable entrypoints: `TopDownCallChain`.
-- Unclear entrypoints or inconsistent naming: `PatternSweep`.
-- Broad or uncertain scope: `Hybrid`.
+- `UnknownEntrypoints`:
+  - Find likely entrypoints quickly with `callgraph-search-file` + `callgraph-list-methods`.
+  - Then switch to outbound call analysis (`visibility=external`, then `internal` for unclear/high-risk paths).
+- `KnownEntrypoints`:
+  - Use `TopDownCallChain` directly (outbound-first).
+  - Confirm async/sync status along each chain before planning edits.
+- `KnownComponentImpact`:
+  - Start inbound (`external` then `internal`) to map callers and blast radius.
+  - Run limited outbound from top-risk callers to confirm impact boundaries.
+  - Produce caller-impact matrix: `caller | layer | change type | risk | confidence`.
+- `LargeRefactorPlanning`:
+  - Run `Map -> Deepen -> Synthesize`.
+  - Map: scope inventory and chain overview.
+  - Deepen: only hotspots/unknowns.
+  - Synthesize: phased plan, risks, verification.
 
-## Guardrails
-- Discovery budget: max 10 tool calls before first shortlist.
-- No full-file reads before shortlist; prefer `callgraph-get-method-source`.
-- After shortlist, provide checkpoint table: `file`, `method`, `reason`, `confidence`.
-- If confidence is below `0.8` after budget, switch playbook once; then ask one focused question.
-- Avoid duplicate reads unless previous attempt failed.
+## Shared Workflow Rules
+- Use elastic budgets: start with 10 discovery tool calls; expand by +8 only after a checkpoint.
+- Required checkpoints:
+  - `scope checkpoint`: `file | method(s) | why relevant | confidence`
+  - `expansion checkpoint`: `unknowns | next tools | expected value`
+- Prefer method-level discovery first (`callgraph-list-methods` / `callgraph-search-method` / `callgraph-analyze-callgraph` -> `callgraph-get-method-source`).
+- Full-file `Read` is escalation only and requires an explicit reason.
+- Keep full-file reads minimal (smallest relevant file, no broad sweeps).
+- If two consecutive full-file reads yield no new findings, stop and checkpoint before further reads.
+- Use Haiku subagents for bounded sidecar work (inventory/extraction), not final synthesis/tradeoff decisions.
+- Keep parallel subagents small and independent; default max 2 unless justified.
