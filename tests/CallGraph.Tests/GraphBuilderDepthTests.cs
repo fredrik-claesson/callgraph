@@ -63,6 +63,7 @@ public sealed class GraphBuilderDepthTests
     {
         var nodes = new ConcurrentDictionary<string, Node>(StringComparer.Ordinal);
         var outbound = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var edges = new List<Edge>();
 
         foreach (var method in methods)
         {
@@ -76,13 +77,20 @@ public sealed class GraphBuilderDepthTests
             outbound[method.Id] = new HashSet<string>(StringComparer.Ordinal);
         }
 
-        return new IndexSession(nodes, outbound, []);
+        return new IndexSession(nodes, outbound, edges, []);
     }
 
     private static void Connect(IndexSession session, string from, string to)
     {
         var calls = session.Outbound.GetOrAdd(from, _ => new HashSet<string>(StringComparer.Ordinal));
         calls.Add(to);
+        session.Edges.Add(new Edge
+        {
+            From = from,
+            To = to,
+            Direction = "outbound",
+            Kind = "calls-direct"
+        });
     }
 
     private static void AssertContainsEdge(Graph graph, string from, string to)

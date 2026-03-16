@@ -39,11 +39,10 @@ public sealed class TargetResolver : ITargetResolver
         if (root is null || model is null)
             return targets;
 
-        var decls = root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>();
+        var decls = CallableSyntax.EnumerateDeclarations(root);
         if (!string.IsNullOrWhiteSpace(methodName))
         {
-            decls = decls.Where(d =>
-                d is MethodDeclarationSyntax m && m.Identifier.ValueText == methodName);
+            decls = decls.Where(d => string.Equals(CallableSyntax.ExtractMethodName(d), methodName, StringComparison.Ordinal));
         }
 
         foreach (var decl in decls)

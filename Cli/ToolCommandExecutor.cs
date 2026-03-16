@@ -894,26 +894,26 @@ internal sealed class ToolCommandExecutor
         var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
 
         var methods = new List<Node>();
-        foreach (var declaration in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
+        foreach (var declaration in CallableSyntax.EnumerateDeclarations(root))
         {
-            var accessibility = GetMethodAccessibility(declaration);
+            var accessibility = CallableSyntax.GetAccessibility(declaration);
             if (!IsVisibilityMatch(accessibility, visibility))
                 continue;
 
-            var signature = ExtractSignatureText(declaration, source);
+            var signature = CallableSyntax.ExtractSignatureText(declaration, source);
             if (string.IsNullOrWhiteSpace(signature))
                 continue;
 
             var lineSpan = syntaxTree.GetLineSpan(declaration.Span);
             var startLine = lineSpan.StartLinePosition.Line + 1;
-            var methodName = ExtractMethodName(declaration);
+            var methodName = CallableSyntax.ExtractMethodName(declaration);
 
             methods.Add(new Node
             {
                 Id = $"{filePath}:{startLine}:{methodName}",
-                Kind = "method",
+                Kind = CallableSyntax.GetCallableKind(declaration),
                 Display = signature.TrimEnd(),
-                ContainingType = ExtractContainingType(declaration),
+                ContainingType = CallableSyntax.ExtractContainingType(declaration),
                 FilePath = filePath,
                 StartLine = startLine,
                 Accessibility = accessibility
@@ -937,84 +937,6 @@ internal sealed class ToolCommandExecutor
         };
     }
 
-    private static string GetMethodAccessibility(BaseMethodDeclarationSyntax declaration)
-    {
-        if (declaration.Ancestors().OfType<InterfaceDeclarationSyntax>().Any())
-            return "public";
-
-        var modifiers = declaration.Modifiers.Select(m => m.ValueText).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (modifiers.Contains("public"))
-            return "public";
-
-        if (modifiers.Contains("protected") && modifiers.Contains("internal"))
-            return "protected internal";
-
-        if (modifiers.Contains("private") && modifiers.Contains("protected"))
-            return "private protected";
-
-        if (modifiers.Contains("protected"))
-            return "protected";
-
-        if (modifiers.Contains("internal"))
-            return "internal";
-
-        if (modifiers.Contains("private"))
-            return "private";
-
-        return "private";
-    }
-
-    private static string ExtractSignatureText(BaseMethodDeclarationSyntax declaration, string source)
-    {
-        var signatureEnd = declaration.Span.End;
-
-        if (declaration.Body is not null)
-            signatureEnd = declaration.Body.Span.Start;
-        else if (declaration.ExpressionBody is not null)
-            signatureEnd = declaration.ExpressionBody.Span.Start;
-
-        if (signatureEnd <= declaration.Span.Start)
-            return string.Empty;
-
-        return source.Substring(declaration.Span.Start, signatureEnd - declaration.Span.Start);
-    }
-
-    private static string ExtractMethodName(BaseMethodDeclarationSyntax declaration)
-    {
-        return declaration switch
-        {
-            MethodDeclarationSyntax method => method.Identifier.ValueText,
-            ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
-            DestructorDeclarationSyntax destructor => destructor.Identifier.ValueText,
-            OperatorDeclarationSyntax @operator => $"operator {@operator.OperatorToken.ValueText}",
-            ConversionOperatorDeclarationSyntax conversion => $"operator {conversion.Type}",
-            _ => declaration.GetType().Name
-        };
-    }
-
-    private static string? ExtractContainingType(BaseMethodDeclarationSyntax declaration)
-    {
-        var typeNames = declaration.Ancestors()
-            .OfType<BaseTypeDeclarationSyntax>()
-            .Select(type => type.Identifier.ValueText)
-            .Reverse()
-            .ToList();
-
-        if (typeNames.Count == 0)
-            return null;
-
-        var namespaceParts = declaration.Ancestors()
-            .OfType<BaseNamespaceDeclarationSyntax>()
-            .Select(namespaceDeclaration => namespaceDeclaration.Name.ToString())
-            .Reverse()
-            .ToList();
-
-        var typeChain = string.Join('.', typeNames);
-        if (namespaceParts.Count == 0)
-            return typeChain;
-
-        return $"{string.Join('.', namespaceParts)}.{typeChain}";
-    }
 }
 
 internal sealed record ToolExecutionResult(int ExitCode, string? Stdout, string? Stderr)

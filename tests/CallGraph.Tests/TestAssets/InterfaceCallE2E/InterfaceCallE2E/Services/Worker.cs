@@ -1,3 +1,4 @@
+using System;
 using InterfaceCallE2E.Contracts.Notifications;
 using InterfaceCallE2E.Contracts.Services;
 
@@ -26,10 +27,69 @@ public class Worker
         notifier?.Notify("conditional");
     }
 
+    public void RunWithLocalFunction()
+    {
+        LocalStep();
+
+        void LocalStep()
+        {
+            _helper.Help();
+        }
+    }
+
+    public void RunWithDelegate()
+    {
+        ExecuteCallback(DelegateStep);
+    }
+
+    public string ReadHelperBackedValue()
+    {
+        return HelperBackedValue;
+    }
+
+    public void SubscribeAndHandle()
+    {
+        Changed += OnChanged;
+    }
+
+    public string HelperBackedValue
+    {
+        get
+        {
+            _helper.Help();
+            return "value";
+        }
+    }
+
+    private event Action Changed
+    {
+        add
+        {
+        }
+        remove
+        {
+        }
+    }
+
     private void DirectHelper()
     {
         _helper.Help();
         PrivateUtility();
+    }
+
+    private static void ExecuteCallback(Action callback)
+    {
+        callback();
+    }
+
+    private void DelegateStep()
+    {
+        _helper.Help();
+    }
+
+    private void OnChanged()
+    {
+        _helper.Help();
     }
 
     protected void ProtectedUtility()

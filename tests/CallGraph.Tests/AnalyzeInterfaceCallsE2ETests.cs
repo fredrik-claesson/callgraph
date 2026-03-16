@@ -297,6 +297,356 @@ public sealed class AnalyzeInterfaceCallsE2ETests
     }
 
     [Fact]
+    public async Task Analyze_RunWithLocalFunction_IndexesLocalFunctionAndTraversesToHelper()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "RunWithLocalFunction",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var runner = FindNodeIdByMethodName(graph, "RunWithLocalFunction");
+            var localStep = graph.Nodes.SingleOrDefault(n => n.Kind == "local-function" && n.Id.Contains("LocalStep", StringComparison.Ordinal))?.Id;
+            var helperHelp = FindNodeId(graph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+
+            Assert.True(runner is not null, "Missing Worker.RunWithLocalFunction()");
+            Assert.True(localStep is not null, "Missing local function node");
+            Assert.True(helperHelp is not null, "Missing Helper.Help()");
+            Assert.Contains(graph.Edges, e => e.From == runner && e.To == localStep && e.Kind == "calls-direct");
+            Assert.Contains(graph.Edges, e => e.From == localStep && e.To == helperHelp && e.Kind == "calls-via-interface");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Analyze_RunWithDelegate_AddsDelegateEdgeToCallbackTarget()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "RunWithDelegate",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var runner = FindNodeIdByMethodName(graph, "RunWithDelegate");
+            var callbackTarget = FindNodeIdByMethodName(graph, "DelegateStep");
+            var helperHelp = FindNodeId(graph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+
+            Assert.True(runner is not null, "Missing Worker.RunWithDelegate()");
+            Assert.True(callbackTarget is not null, "Missing Worker.DelegateStep()");
+            Assert.True(helperHelp is not null, "Missing Helper.Help()");
+            Assert.Contains(graph.Edges, e => e.From == runner && e.To == callbackTarget && e.Kind == "calls-via-delegate");
+            Assert.Contains(graph.Edges, e => e.From == callbackTarget && e.To == helperHelp && e.Kind == "calls-via-interface");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Analyze_ReadHelperBackedValue_TraversesPropertyGetter()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "ReadHelperBackedValue",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var reader = FindNodeIdByMethodName(graph, "ReadHelperBackedValue");
+            var getter = graph.Nodes.SingleOrDefault(n => n.Kind == "property-get" && string.Equals(n.ContainingType, "InterfaceCallE2E.Application.Services.Worker", StringComparison.Ordinal))?.Id;
+            var helperHelp = FindNodeId(graph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+
+            Assert.True(reader is not null, "Missing Worker.ReadHelperBackedValue()");
+            Assert.True(getter is not null, "Missing property getter node");
+            Assert.True(helperHelp is not null, "Missing Helper.Help()");
+            Assert.Contains(graph.Edges, e => e.From == reader && e.To == getter && e.Kind == "calls-via-property-get");
+            Assert.Contains(graph.Edges, e => e.From == getter && e.To == helperHelp && e.Kind == "calls-via-interface");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task ExternalVisibility_TreatsLocalFunctionHopAsSameClassDepth()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 1,
+                    Method: "RunWithLocalFunction",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "external"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var localStep = graph.Nodes.SingleOrDefault(n => n.Kind == "local-function" && n.Id.Contains("LocalStep", StringComparison.Ordinal))?.Id;
+            var helperHelp = FindNodeId(graph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+
+            Assert.True(localStep is not null, "Missing local function node");
+            Assert.True(helperHelp is not null, "Helper.Help() should be reachable at external depth 1");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Analyze_SubscribeAndHandle_AddsEventAccessorAndHandlerEdges()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+            var result = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "SubscribeAndHandle",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(result.Graph is not null, $"Analyze failed: {result.Error?.Kind} - {result.Error?.Detail}");
+            var graph = result.Graph!;
+
+            var subscriber = FindNodeIdByMethodName(graph, "SubscribeAndHandle");
+            var handler = FindNodeIdByMethodName(graph, "OnChanged");
+            var eventAddAccessor = graph.Nodes.SingleOrDefault(n => n.Kind == "event-add" && string.Equals(n.ContainingType, "InterfaceCallE2E.Application.Services.Worker", StringComparison.Ordinal))?.Id;
+            var helperHelp = FindNodeId(graph, "Helper.Help()", "InterfaceCallE2E.Infrastructure.Services.Helper.Help()");
+
+            Assert.True(subscriber is not null, "Missing Worker.SubscribeAndHandle()");
+            Assert.True(handler is not null, "Missing Worker.OnChanged()");
+            Assert.True(eventAddAccessor is not null, "Missing event add accessor node");
+            Assert.True(helperHelp is not null, "Missing Helper.Help()");
+            Assert.Contains(graph.Edges, e => e.From == subscriber && e.To == eventAddAccessor && e.Kind == "calls-via-event-add");
+            Assert.Contains(graph.Edges, e => e.From == subscriber && e.To == handler && (e.Kind == "calls-via-event-handler" || e.Kind == "calls-via-delegate"));
+            Assert.Contains(graph.Edges, e => e.From == handler && e.To == helperHelp && e.Kind == "calls-via-interface");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Index_PersistsConstructorKindForDeclaredConstructors()
+    {
+        var solutionPath = GetSolutionPath();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var index = await indexStore.LoadAsync(solutionPath, CancellationToken.None);
+            Assert.True(index is not null, "Expected indexed solution.");
+
+            var constructor = index!.Nodes.SingleOrDefault(node =>
+                node.Kind == "constructor" &&
+                string.Equals(node.ContainingType, "InterfaceCallE2E.Application.Services.Worker", StringComparison.Ordinal) &&
+                (node.Display ?? string.Empty).Contains("Worker.Worker(", StringComparison.Ordinal));
+
+            Assert.True(constructor is not null, "Missing Worker constructor node.");
+            Assert.Equal("constructor", constructor!.Kind);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
+    [Fact]
     public async Task IncrementalReindex_PreservesInboundCallersToUpdatedFileMethods()
     {
         var sourceSolutionPath = GetSolutionPath();

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using CallGraph.Core.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -42,8 +43,7 @@ public sealed class MethodSourceExtractor : IMethodSourceExtractor
         var syntaxTree = CSharpSyntaxTree.ParseText(source, path: request.FilePath, cancellationToken: cancellationToken);
         var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
 
-        var candidates = root.DescendantNodes()
-            .OfType<BaseMethodDeclarationSyntax>()
+        var candidates = CallableSyntax.EnumerateDeclarations(root)
             .Select(decl => BuildCandidate(decl, source, syntaxTree))
             .Where(candidate => candidate is not null)
             .Select(candidate => candidate!)
@@ -180,15 +180,15 @@ public sealed class MethodSourceExtractor : IMethodSourceExtractor
         return withoutLineComments.TrimEnd();
     }
 
-    private static MethodCandidate? BuildCandidate(BaseMethodDeclarationSyntax declaration, string source, SyntaxTree syntaxTree)
+    private static MethodCandidate? BuildCandidate(SyntaxNode declaration, string source, SyntaxTree syntaxTree)
     {
-        var signature = ExtractSignatureText(declaration, source);
+        var signature = CallableSyntax.ExtractSignatureText(declaration, source);
         if (string.IsNullOrWhiteSpace(signature))
             return null;
 
-        var body = ExtractBodyText(declaration);
-        var methodName = ExtractMethodName(declaration);
-        var containingType = ExtractContainingType(declaration);
+        var body = CallableSyntax.ExtractBodyText(declaration);
+        var methodName = CallableSyntax.ExtractMethodName(declaration);
+        var containingType = CallableSyntax.ExtractContainingType(declaration);
 
         var lineSpan = syntaxTree.GetLineSpan(declaration.Span);
         var startLine = lineSpan.StartLinePosition.Line + 1;
@@ -202,69 +202,6 @@ public sealed class MethodSourceExtractor : IMethodSourceExtractor
             startLine,
             endLine,
             declaration.Span);
-    }
-
-    private static string ExtractSignatureText(BaseMethodDeclarationSyntax declaration, string source)
-    {
-        var signatureEnd = declaration.Span.End;
-
-        if (declaration.Body is not null)
-            signatureEnd = declaration.Body.Span.Start;
-        else if (declaration.ExpressionBody is not null)
-            signatureEnd = declaration.ExpressionBody.Span.Start;
-
-        if (signatureEnd <= declaration.Span.Start)
-            return string.Empty;
-
-        return source.Substring(declaration.Span.Start, signatureEnd - declaration.Span.Start).TrimEnd();
-    }
-
-    private static string ExtractBodyText(BaseMethodDeclarationSyntax declaration)
-    {
-        if (declaration.Body is not null)
-            return declaration.Body.ToFullString();
-
-        if (declaration.ExpressionBody is not null)
-            return declaration.ExpressionBody.ToFullString() + declaration.SemicolonToken.ToFullString();
-
-        return string.Empty;
-    }
-
-    private static string ExtractMethodName(BaseMethodDeclarationSyntax declaration)
-    {
-        return declaration switch
-        {
-            MethodDeclarationSyntax method => method.Identifier.ValueText,
-            ConstructorDeclarationSyntax constructor => constructor.Identifier.ValueText,
-            DestructorDeclarationSyntax destructor => destructor.Identifier.ValueText,
-            OperatorDeclarationSyntax @operator => $"operator {@operator.OperatorToken.ValueText}",
-            ConversionOperatorDeclarationSyntax conversion => $"operator {conversion.Type}",
-            _ => declaration.GetType().Name
-        };
-    }
-
-    private static string? ExtractContainingType(BaseMethodDeclarationSyntax declaration)
-    {
-        var typeNames = declaration.Ancestors()
-            .OfType<BaseTypeDeclarationSyntax>()
-            .Select(type => type.Identifier.ValueText)
-            .Reverse()
-            .ToList();
-
-        if (typeNames.Count == 0)
-            return null;
-
-        var namespaceParts = declaration.Ancestors()
-            .OfType<BaseNamespaceDeclarationSyntax>()
-            .Select(namespaceDeclaration => namespaceDeclaration.Name.ToString())
-            .Reverse()
-            .ToList();
-
-        var typeChain = string.Join('.', typeNames);
-        if (namespaceParts.Count == 0)
-            return typeChain;
-
-        return $"{string.Join('.', namespaceParts)}.{typeChain}";
     }
 
     private static int GetUtf8ByteOffset(string source, int charOffset)

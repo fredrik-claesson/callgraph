@@ -197,6 +197,87 @@ Default index location:
 - Windows: `%LocalAppData%\CallGraph\index.db`
 - macOS: `~/Library/Application Support/CallGraph/index.db`
 
+## SQLite Query Examples
+
+The SQLite index is useful for exploratory queries, but treat these as heuristics:
+- "potentially unused" from the index is not equivalent to Roslyn unused diagnostics; prefer `callgraph list-unused` for authoritative results
+- `ContainingType` is stored as a minimally qualified type name, so same-named types from different namespaces can be grouped together
+
+Use the SQLite CLI directly against the default index path:
+
+```bash
+# macOS
+sqlite3 "$HOME/Library/Application Support/CallGraph/index.db"
+
+# Windows
+sqlite3 "%LocalAppData%\\CallGraph\\index.db"
+```
+
+Run a query inline and print column headers:
+
+```bash
+sqlite3 -header -column "$HOME/Library/Application Support/CallGraph/index.db" "
+SELECT
+  m.ContainingType,
+  count(*) AS PublicMethodCount
+FROM Methods m
+WHERE lower(coalesce(m.Accessibility, '')) = 'public'
+GROUP BY m.ContainingType
+HAVING count(*) > 10
+ORDER BY PublicMethodCount DESC;
+"
+```
+
+```sql
+-- Potentially unused private methods:
+-- methods with no inbound edges inside the indexed call graph.
+-- Excludes constructors, static constructors, and property accessors.
+SELECT
+  m.ContainingType,
+  m.Display,
+  m.FilePath,
+  m.StartLine
+FROM Methods m
+LEFT JOIN Edges e
+  ON e.SolutionId = m.SolutionId
+ AND e.ToKey = m.Key
+WHERE e.ToKey IS NULL
+  AND lower(coalesce(m.Accessibility, '')) = 'private'
+  AND lower(coalesce(m.Kind, '')) NOT IN (
+    'constructor',
+    'static-constructor',
+    'property-get',
+    'property-set'
+  )
+ORDER BY m.FilePath, m.StartLine;
+```
+
+```sql
+-- Types with more than 10 public methods,
+-- excluding common endpoint, adapter, and persistence naming patterns.
+SELECT
+  m.ContainingType,
+  count(*) AS PublicMethodCount
+FROM Methods m
+WHERE lower(coalesce(m.Accessibility, '')) = 'public'
+  AND coalesce(m.ContainingType, '') <> ''
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%controller%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%endpoint%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%repository%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%adapter%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%dbcontext%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%store%'
+  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%dao%'
+  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/controllers/%'
+  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/endpoints/%'
+  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/repositories/%'
+  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/adapters/%'
+  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/persistence/%'
+GROUP BY m.ContainingType
+HAVING count(*) > 10
+ORDER BY PublicMethodCount DESC, m.ContainingType;
+```
+
 Override with configuration:
 
 ```json

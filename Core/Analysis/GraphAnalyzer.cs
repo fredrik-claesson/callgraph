@@ -222,7 +222,7 @@ public sealed class GraphAnalyzer : IGraphAnalyzer
             set.Add(edge.To);
         }
 
-        return new IndexSession(nodes, outbound, new List<string>());
+        return new IndexSession(nodes, outbound, index.Edges.ToList(), new List<string>());
     }
 
     private static string NormalizeVisibility(string? visibility)

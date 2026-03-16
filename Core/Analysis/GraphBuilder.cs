@@ -12,24 +12,7 @@ public sealed class GraphBuilder : IGraphBuilder
         IndexSession session,
         bool slnOnly,
         DateTime? indexedAtUtc = null)
-    {
-        var edges = new List<Edge>();
-
-        foreach (var (caller, callees) in session.Outbound)
-        {
-            foreach (var callee in callees)
-            {
-                edges.Add(new Edge
-                {
-                    From = caller,
-                    To = callee,
-                    Direction = "outbound",
-                    Kind = "calls"
-                });
-            }
-        }
-
-        return new SolutionIndex
+        => new()
         {
             SolutionId = solutionId,
             SolutionPath = Path.GetFullPath(solutionPath),
@@ -39,54 +22,53 @@ public sealed class GraphBuilder : IGraphBuilder
                 .DistinctBy(n => n.Id)
                 .OrderBy(n => n.Id, StringComparer.Ordinal)
                 .ToList(),
-            Edges = edges
+            Edges = session.Edges
                 .OrderBy(e => e.From, StringComparer.Ordinal)
                 .ThenBy(e => e.To, StringComparer.Ordinal)
                 .ThenBy(e => e.Direction, StringComparer.Ordinal)
+                .ThenBy(e => e.Kind, StringComparer.Ordinal)
                 .ToList(),
             ProjectPaths = session.ProjectPaths
         };
-    }
 
     public Graph BuildGraph(IndexSession session, HashSet<string> targets, int depth, string direction, string visibility)
     {
         var edges = new List<Edge>();
         var included = new HashSet<string>(targets, StringComparer.Ordinal);
-        var inbound = Invert(session.Outbound);
+        var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
+        var outbound = BuildAdjacency(session.Edges, outbound: true);
+        var inbound = BuildAdjacency(session.Edges, outbound: false);
         var includeOutbound = string.Equals(direction, "outbound", StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(direction, "bi-directional", StringComparison.OrdinalIgnoreCase);
         var includeInbound = string.Equals(direction, "inbound", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(direction, "bi-directional", StringComparison.OrdinalIgnoreCase);
         var useClassBasedDepth = string.Equals(visibility, "external", StringComparison.OrdinalIgnoreCase);
 
-        void AddEdge(string from, string to, string dir)
+        void AddEdge(TraversalEdge edge)
         {
-            edges.Add(new Edge { From = from, To = to, Direction = dir, Kind = "calls" });
-            included.Add(from);
-            included.Add(to);
+            var edgeKey = $"{edge.Output.From}\u0000{edge.Output.To}\u0000{edge.Output.Direction}\u0000{edge.Output.Kind}";
+            if (edgeKeys.Add(edgeKey))
+                edges.Add(edge.Output);
+            included.Add(edge.Output.From);
+            included.Add(edge.Output.To);
         }
 
-        IEnumerable<string> OutNext(string k) => session.Outbound.TryGetValue(k, out var s) ? s : Array.Empty<string>();
-        IEnumerable<string> InNext(string k) => inbound.TryGetValue(k, out var s) ? s : Array.Empty<string>();
+        IEnumerable<TraversalEdge> OutNext(string k) => outbound.TryGetValue(k, out var s) ? s : Array.Empty<TraversalEdge>();
+        IEnumerable<TraversalEdge> InNext(string k) => inbound.TryGetValue(k, out var s) ? s : Array.Empty<TraversalEdge>();
 
-        foreach (var t in targets)
+        if (useClassBasedDepth)
         {
-            if (useClassBasedDepth)
-            {
-                // External: depth counts class boundaries only, all edges traversed
-                if (includeOutbound)
-                    TraverseByClass(t, depth, session.Nodes, OutNext, (from, to) => AddEdge(from, to, "outbound"));
-                if (includeInbound)
-                    TraverseByClass(t, depth, session.Nodes, InNext, (from, caller) => AddEdge(caller, from, "inbound"));
-            }
-            else
-            {
-                // Internal: every hop counts toward depth
-                if (includeOutbound)
-                    TraverseByMethod(t, depth, OutNext, (from, to) => AddEdge(from, to, "outbound"));
-                if (includeInbound)
-                    TraverseByMethod(t, depth, InNext, (from, caller) => AddEdge(caller, from, "inbound"));
-            }
+            if (includeOutbound)
+                TraverseByClass(targets, depth, session.Nodes, OutNext, AddEdge);
+            if (includeInbound)
+                TraverseByClass(targets, depth, session.Nodes, InNext, AddEdge);
+        }
+        else
+        {
+            if (includeOutbound)
+                TraverseByMethod(targets, depth, OutNext, AddEdge);
+            if (includeInbound)
+                TraverseByMethod(targets, depth, InNext, AddEdge);
         }
 
         var outNodes = included
@@ -106,121 +88,122 @@ public sealed class GraphBuilder : IGraphBuilder
                 .OrderBy(e => e.From, StringComparer.Ordinal)
                 .ThenBy(e => e.To, StringComparer.Ordinal)
                 .ThenBy(e => e.Direction, StringComparer.Ordinal)
+                .ThenBy(e => e.Kind, StringComparer.Ordinal)
                 .ToList()
         };
     }
 
-    private static Dictionary<string, HashSet<string>> Invert(
-        IDictionary<string, HashSet<string>> outbound)
+    private static Dictionary<string, List<TraversalEdge>> BuildAdjacency(
+        IEnumerable<Edge> edges,
+        bool outbound)
     {
-        var inbound = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        foreach (var (caller, callees) in outbound)
+        var adjacency = new Dictionary<string, List<TraversalEdge>>(StringComparer.Ordinal);
+        foreach (var edge in edges)
         {
-            foreach (var callee in callees)
+            var key = outbound ? edge.From : edge.To;
+            var next = outbound ? edge.To : edge.From;
+            var output = new Edge
             {
-                if (!inbound.TryGetValue(callee, out var callers))
-                {
-                    inbound[callee] = callers = new HashSet<string>(StringComparer.Ordinal);
-                }
-                callers.Add(caller);
+                From = edge.From,
+                To = edge.To,
+                Direction = outbound ? "outbound" : "inbound",
+                Kind = edge.Kind
+            };
+
+            if (!adjacency.TryGetValue(key, out var list))
+            {
+                list = new List<TraversalEdge>();
+                adjacency[key] = list;
             }
+
+            list.Add(new TraversalEdge(next, output));
         }
-        return inbound;
+
+        return adjacency;
     }
 
     private static void TraverseByClass(
-        string start,
+        IEnumerable<string> starts,
         int maxClassDepth,
         IReadOnlyDictionary<string, Node> nodes,
-        Func<string, IEnumerable<string>> next,
-        Action<string, string> onEdge)
+        Func<string, IEnumerable<TraversalEdge>> next,
+        Action<TraversalEdge> onEdge)
     {
-        var seenDepth = new Dictionary<string, int>(StringComparer.Ordinal)
+        var distances = new Dictionary<string, int>(StringComparer.Ordinal);
+        var queue = new LinkedList<string>();
+
+        foreach (var start in starts)
         {
-            [start] = 0
-        };
+            if (distances.TryAdd(start, 0))
+                queue.AddLast(start);
+        }
 
-        // Frontier tracks (methodId, classDepth)
-        var frontier = new List<(string MethodId, int ClassDepth)> { (start, 0) };
-
-        while (frontier.Count > 0)
+        while (queue.Count > 0)
         {
-            var nextFrontier = new List<(string MethodId, int ClassDepth)>();
+            var fromMethod = queue.First!.Value;
+            queue.RemoveFirst();
 
-            foreach (var (fromMethod, currentClassDepth) in frontier)
+            if (!distances.TryGetValue(fromMethod, out var currentClassDepth))
+                continue;
+
+            var fromClass = GetContainingType(fromMethod, nodes);
+            foreach (var edge in next(fromMethod))
             {
-                var fromClass = GetContainingType(fromMethod, nodes);
+                var toMethod = edge.Next;
+                var toClass = GetContainingType(toMethod, nodes);
 
-                foreach (var toMethod in next(fromMethod))
+                var weight = string.Equals(fromClass, toClass, StringComparison.Ordinal) ? 0 : 1;
+                var newClassDepth = currentClassDepth + weight;
+                if (newClassDepth > maxClassDepth)
+                    continue;
+
+                onEdge(edge);
+
+                if (!distances.TryGetValue(toMethod, out var existingDepth) || newClassDepth < existingDepth)
                 {
-                    var toClass = GetContainingType(toMethod, nodes);
-
-                    // Only increment depth when crossing to a different class
-                    var newClassDepth = string.Equals(fromClass, toClass, StringComparison.Ordinal)
-                        ? currentClassDepth
-                        : currentClassDepth + 1;
-
-                    if (seenDepth.TryGetValue(toMethod, out var existingDepth))
-                    {
-                        if (existingDepth <= maxClassDepth)
-                            onEdge(fromMethod, toMethod);
-                        continue;
-                    }
-
-                    if (newClassDepth > maxClassDepth)
-                        continue;
-
-                    onEdge(fromMethod, toMethod);
-                    seenDepth[toMethod] = newClassDepth;
-                    nextFrontier.Add((toMethod, newClassDepth));
+                    distances[toMethod] = newClassDepth;
+                    if (weight == 0)
+                        queue.AddFirst(toMethod);
+                    else
+                        queue.AddLast(toMethod);
                 }
             }
-
-            frontier = nextFrontier;
         }
     }
 
     private static void TraverseByMethod(
-        string start,
+        IEnumerable<string> starts,
         int maxDepth,
-        Func<string, IEnumerable<string>> next,
-        Action<string, string> onEdge)
+        Func<string, IEnumerable<TraversalEdge>> next,
+        Action<TraversalEdge> onEdge)
     {
-        var seenDepth = new Dictionary<string, int>(StringComparer.Ordinal)
-        {
-            [start] = 0
-        };
+        var seenDepth = new Dictionary<string, int>(StringComparer.Ordinal);
+        var frontier = new Queue<(string MethodId, int Depth)>();
 
-        // Frontier tracks (methodId, depth) - every hop counts
-        var frontier = new List<(string MethodId, int Depth)> { (start, 0) };
+        foreach (var start in starts)
+        {
+            if (seenDepth.TryAdd(start, 0))
+                frontier.Enqueue((start, 0));
+        }
 
         while (frontier.Count > 0)
         {
-            var nextFrontier = new List<(string MethodId, int Depth)>();
-
-            foreach (var (fromMethod, currentDepth) in frontier)
+            var (fromMethod, currentDepth) = frontier.Dequeue();
+            foreach (var edge in next(fromMethod))
             {
-                foreach (var toMethod in next(fromMethod))
+                var toMethod = edge.Next;
+                var newDepth = currentDepth + 1;
+                if (newDepth > maxDepth)
+                    continue;
+
+                onEdge(edge);
+
+                if (!seenDepth.TryGetValue(toMethod, out _))
                 {
-                    var newDepth = currentDepth + 1;
-
-                    if (seenDepth.TryGetValue(toMethod, out var existingDepth))
-                    {
-                        if (existingDepth <= maxDepth)
-                            onEdge(fromMethod, toMethod);
-                        continue;
-                    }
-
-                    if (newDepth > maxDepth)
-                        continue;
-
-                    onEdge(fromMethod, toMethod);
                     seenDepth[toMethod] = newDepth;
-                    nextFrontier.Add((toMethod, newDepth));
+                    frontier.Enqueue((toMethod, newDepth));
                 }
             }
-
-            frontier = nextFrontier;
         }
     }
 
@@ -246,4 +229,6 @@ public sealed class GraphBuilder : IGraphBuilder
         
         return beforeParen.Substring(0, lastDot);
     }
+
+    private sealed record TraversalEdge(string Next, Edge Output);
 }

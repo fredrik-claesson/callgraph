@@ -401,9 +401,8 @@ public sealed class SolutionWatcher : IDisposable
             }
         }
 
-        // Build interface implementation map lazily
-        var interfaceMap = new Lazy<Task<Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>>>>(
-            () => BuildInterfaceImplementationMapAsync(context.Projects, cancellationToken));
+        var dispatchMaps = new Lazy<Task<DispatchMaps>>(
+            () => DispatchMapBuilder.BuildAsync(context.Projects, cancellationToken));
 
         var results = new System.Collections.Concurrent.ConcurrentBag<FileIndex>();
         await Parallel.ForEachAsync(normalizedFilePaths, cancellationToken, async (normalizedFilePath, ct) =>
@@ -414,14 +413,16 @@ public sealed class SolutionWatcher : IDisposable
                 return;
             }
 
-            var index = await BuildIndexForDocumentAsync(
-                    doc,
-                    normalizedFilePath,
-                    () => interfaceMap.Value,
-                    ct)
+            var graph = await DocumentCallGraphExtractor
+                .ExtractAsync(doc, () => dispatchMaps.Value, ct)
                 .ConfigureAwait(false);
-            if (index is not null)
-                results.Add(index);
+
+            results.Add(new FileIndex
+            {
+                FilePath = normalizedFilePath,
+                Nodes = graph.Nodes.ToList(),
+                Edges = graph.Edges.ToList()
+            });
         }).ConfigureAwait(false);
 
         return results.ToList();
@@ -603,228 +604,4 @@ public sealed class SolutionWatcher : IDisposable
         => path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
            path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase);
 
-    // Helper methods for file indexing (copied from FileIndexer to support cached context)
-
-    private static async Task<Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>>> BuildInterfaceImplementationMapAsync(
-        IEnumerable<Microsoft.CodeAnalysis.Project> projects,
-        CancellationToken cancellationToken)
-    {
-        var map = new Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>>(StringComparer.Ordinal);
-
-        foreach (var project in projects)
-        {
-            var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
-            if (compilation is null)
-                continue;
-
-            foreach (var syntaxTree in compilation.SyntaxTrees)
-            {
-                var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
-
-                foreach (var typeDecl in root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>())
-                {
-                    var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
-                    if (typeSymbol is Microsoft.CodeAnalysis.INamedTypeSymbol namedType && !namedType.IsAbstract)
-                    {
-                        // Track all interfaces this type implements
-                        foreach (var @interface in namedType.AllInterfaces)
-                        {
-                            var interfaceKey = @interface.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat);
-                            if (!map.TryGetValue(interfaceKey, out var implementations))
-                            {
-                                implementations = new List<Microsoft.CodeAnalysis.INamedTypeSymbol>();
-                                map[interfaceKey] = implementations;
-                            }
-                            implementations.Add(namedType);
-                        }
-                    }
-                }
-            }
-        }
-
-        return map;
-    }
-
-    private static async Task<FileIndex?> BuildIndexForDocumentAsync(
-        Microsoft.CodeAnalysis.Document doc,
-        string normalizedFilePath,
-        Func<Task<Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>>>> getInterfaceImplementations,
-        CancellationToken cancellationToken)
-    {
-        var root = await doc.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        var model = await doc.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
-        if (root is null || model is null)
-            return null;
-
-        var nodes = new List<Node>();
-        var edges = new List<Edge>();
-        var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
-        Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>>? interfaceImplementations = null;
-
-        foreach (var md in root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseMethodDeclarationSyntax>())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var caller = model.GetDeclaredSymbol(md, cancellationToken) as Microsoft.CodeAnalysis.IMethodSymbol;
-            if (caller is null)
-                continue;
-
-            var callerKey = CallGraph.Core.Analysis.SymbolKeyFormatter.Format(caller);
-            nodes.Add(MakeNode(caller, md.GetLocation()));
-
-            foreach (var inv in md.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
-            {
-                var symbolInfo = model.GetSymbolInfo(inv, cancellationToken);
-                var callee = ResolveMethodSymbol(symbolInfo);
-                if (callee is null)
-                    continue;
-
-                AddEdge(edges, edgeKeys, callerKey, CallGraph.Core.Analysis.SymbolKeyFormatter.Format(callee), "direct");
-
-                if (IsInterfaceCall(inv, model, cancellationToken, out var interfaceMethod))
-                {
-                    interfaceImplementations ??= await getInterfaceImplementations().ConfigureAwait(false);
-                    AddInterfaceImplementationEdges(
-                        edges,
-                        edgeKeys,
-                        callerKey,
-                        interfaceMethod!,
-                        interfaceImplementations);
-                }
-            }
-
-            foreach (var obj in md.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ObjectCreationExpressionSyntax>())
-            {
-                var ctor = ResolveMethodSymbol(model.GetSymbolInfo(obj, cancellationToken));
-                if (ctor is null)
-                    continue;
-
-                AddEdge(edges, edgeKeys, callerKey, CallGraph.Core.Analysis.SymbolKeyFormatter.Format(ctor), "direct");
-            }
-        }
-
-        return new FileIndex
-        {
-            FilePath = normalizedFilePath,
-            Nodes = nodes
-                .DistinctBy(n => n.Id)
-                .OrderBy(n => n.Id, StringComparer.Ordinal)
-                .ToList(),
-            Edges = edges
-                .OrderBy(e => e.From, StringComparer.Ordinal)
-                .ThenBy(e => e.To, StringComparer.Ordinal)
-                .ThenBy(e => e.Direction, StringComparer.Ordinal)
-                .ToList()
-        };
-    }
-
-    private static void AddEdge(
-        ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
-        string from,
-        string to,
-        string callKind = "direct")
-    {
-        var key = $"{from}\u0000{to}\u0000{callKind}";
-        if (!edgeKeys.Add(key))
-            return;
-
-        edges.Add(new Edge
-        {
-            From = from,
-            To = to,
-            Direction = "outbound",
-            Kind = callKind == "interface" ? "calls-via-interface" : "calls"
-        });
-    }
-
-    private static Microsoft.CodeAnalysis.IMethodSymbol? ResolveMethodSymbol(Microsoft.CodeAnalysis.SymbolInfo info)
-        => info.Symbol as Microsoft.CodeAnalysis.IMethodSymbol
-           ?? info.CandidateSymbols.OfType<Microsoft.CodeAnalysis.IMethodSymbol>().FirstOrDefault();
-
-    private static bool IsInterfaceCall(
-        Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax invocation,
-        Microsoft.CodeAnalysis.SemanticModel model,
-        CancellationToken cancellationToken,
-        out Microsoft.CodeAnalysis.IMethodSymbol? interfaceMethod)
-    {
-        interfaceMethod = null;
-
-        var expression = invocation.Expression;
-
-        if (expression is Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax memberAccess)
-        {
-            var typeInfo = model.GetTypeInfo(memberAccess.Expression, cancellationToken);
-            var type = typeInfo.Type;
-
-            if (type is Microsoft.CodeAnalysis.INamedTypeSymbol { TypeKind: Microsoft.CodeAnalysis.TypeKind.Interface })
-            {
-                var symbolInfo = model.GetSymbolInfo(invocation, cancellationToken);
-                interfaceMethod = symbolInfo.Symbol as Microsoft.CodeAnalysis.IMethodSymbol;
-                return interfaceMethod?.ContainingType?.TypeKind == Microsoft.CodeAnalysis.TypeKind.Interface;
-            }
-        }
-
-        return false;
-    }
-
-    private static void AddInterfaceImplementationEdges(
-        ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
-        string callerKey,
-        Microsoft.CodeAnalysis.IMethodSymbol interfaceMethod,
-        Dictionary<string, List<Microsoft.CodeAnalysis.INamedTypeSymbol>> interfaceImplementations)
-    {
-        var interfaceType = interfaceMethod.ContainingType;
-        if (interfaceType is null)
-            return;
-
-        var interfaceKey = interfaceType.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat);
-        if (!interfaceImplementations.TryGetValue(interfaceKey, out var implementations))
-            return;
-
-        foreach (var implementingType in implementations)
-        {
-            var implementationMethod = MethodSignatureMatcher.FindImplementationMethod(implementingType, interfaceMethod);
-
-            if (implementationMethod is not null)
-            {
-                var implementationKey = CallGraph.Core.Analysis.SymbolKeyFormatter.Format(implementationMethod);
-                AddEdge(edges, edgeKeys, callerKey, implementationKey, "interface");
-            }
-        }
-    }
-
-    private static Node MakeNode(Microsoft.CodeAnalysis.IMethodSymbol method, Microsoft.CodeAnalysis.Location? location)
-    {
-        var loc = location?.IsInSource == true
-            ? location
-            : method.Locations.FirstOrDefault(l => l.IsInSource);
-        var file = loc?.SourceTree?.FilePath;
-        var line = loc is null ? (int?)null : loc.GetLineSpan().StartLinePosition.Line + 1;
-
-        return new Node
-        {
-            Id = CallGraph.Core.Analysis.SymbolKeyFormatter.Format(method),
-            Kind = "method",
-            Display = method.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
-            ContainingType = method.ContainingType?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.MinimallyQualifiedFormat),
-            FilePath = file is null ? null : Path.GetFullPath(file),
-            StartLine = line,
-            Accessibility = MapAccessibility(method.DeclaredAccessibility)
-        };
-    }
-
-    private static string? MapAccessibility(Microsoft.CodeAnalysis.Accessibility accessibility)
-        => accessibility switch
-        {
-            Microsoft.CodeAnalysis.Accessibility.Public => "public",
-            Microsoft.CodeAnalysis.Accessibility.Protected => "protected",
-            Microsoft.CodeAnalysis.Accessibility.Internal => "internal",
-            Microsoft.CodeAnalysis.Accessibility.Private => "private",
-            Microsoft.CodeAnalysis.Accessibility.ProtectedAndInternal => "private protected",
-            Microsoft.CodeAnalysis.Accessibility.ProtectedOrInternal => "protected internal",
-            _ => null
-        };
 }
