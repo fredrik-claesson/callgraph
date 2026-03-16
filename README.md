@@ -232,9 +232,11 @@ ORDER BY PublicMethodCount DESC;
 -- Potentially unused private methods:
 -- methods with no inbound edges inside the indexed call graph.
 -- Excludes constructors, static constructors, and property accessors.
+-- Include m.Key when reviewing results so overloads are distinguishable.
 SELECT
   m.ContainingType,
   m.Display,
+  m.Key,
   m.FilePath,
   m.StartLine
 FROM Methods m
@@ -251,6 +253,10 @@ WHERE e.ToKey IS NULL
   )
 ORDER BY m.FilePath, m.StartLine;
 ```
+
+`m.Key` is the canonical symbol identity in the index. Prefer it over `m.Display`
+when validating unused-method candidates, because overloads can share the same
+display name but have different parameter types and different callers.
 
 ```sql
 -- Types with more than 10 public methods,

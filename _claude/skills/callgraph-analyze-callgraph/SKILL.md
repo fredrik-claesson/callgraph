@@ -25,6 +25,8 @@ Parse the user request for:
 - Do not perform broader discovery/search first unless the user explicitly asks for it.
 - If user provides class + method but no file path, resolve file first with `search-file --pattern "*<ClassName>.cs"`.
 - When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+- Use `analyze` to find relationships and candidate hops, not to infer detailed filter/query behavior by itself.
+- If the user is asking why data changes, which filter wins, or where a query is shaped, use `analyze` to narrow candidates, then inspect the downstream implementation with `get-method-source` or targeted reads until the real sink is found.
 
 ## Visibility (depth strategy)
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.

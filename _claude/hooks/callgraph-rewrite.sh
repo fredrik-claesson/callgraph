@@ -13,6 +13,28 @@ if [ -z "$CMD" ]; then
   exit 0
 fi
 
+allow_command() {
+  jq -n \
+    --arg reason "$1" \
+    '{
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow",
+        "permissionDecisionReason": $reason
+      }
+    }'
+  exit 0
+}
+
+# Allow lightweight environment checks so agents can diagnose CallGraph availability.
+if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*(which|command[[:space:]]+-v|type[[:space:]]+-P)[[:space:]]+callgraph\b'; then
+  allow_command "Allowed: CallGraph availability check"
+fi
+
+if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*ls\b' && printf '%s' "$CMD" | grep -Eqi '(\.local/bin|\.dotnet/tools|/tools/?$|/tools/|callgraph)'; then
+  allow_command "Allowed: CallGraph install/path inspection"
+fi
+
 # Guard against explosive internal callgraph traversals.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
   # Common typo guard: analyze-callgraph is not a valid command.
@@ -83,6 +105,32 @@ if printf '%s' "$CMD" | grep -Eqi '\bcallgraph[[:space:]]+get-method-source\b'; 
   fi
 fi
 
+# Rewrite a common malformed search-method invocation:
+#   callgraph search-method FooBar  -> callgraph search-method --pattern "*FooBar*"
+if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
+   ! printf '%s' "$CMD" | grep -Eq -- '--(pattern|keywords|regex)\b'; then
+  BARE_QUERY=$(printf '%s' "$CMD" | sed -nE 's/^[[:space:]]*callgraph[[:space:]]+search-method[[:space:]]+("?[^-][^"]*"?)[[:space:]]*$/\1/p' | head -n1)
+  if [ -n "$BARE_QUERY" ]; then
+    BARE_QUERY=$(printf '%s' "$BARE_QUERY" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
+    if [ -n "$BARE_QUERY" ]; then
+      REWRITTEN_CMD=$(printf 'callgraph search-method --pattern "*%s*" 2>&1' "$BARE_QUERY")
+      ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '.tool_input')
+      UPDATED_INPUT=$(echo "$ORIGINAL_INPUT" | jq --arg cmd "$REWRITTEN_CMD" '.command = $cmd')
+      jq -n \
+        --argjson updated "$UPDATED_INPUT" \
+        '{
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+            "permissionDecisionReason": "CallGraph auto-rewrite: added --pattern for search-method",
+            "updatedInput": $updated
+          }
+        }'
+      exit 0
+    fi
+  fi
+fi
+
 # Guard against relative --filePath on file-scoped callgraph commands.
 if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+(list-methods|get-method-source|search-file|search-method)\b' && \
    printf '%s' "$CMD" | grep -Eq -- '--filePath([[:space:]]+|=)'; then
@@ -124,15 +172,7 @@ if ! printf '%s' "$CMD" | grep -Eqi '(\.cs([^[:alnum:]_]|$)|-name[[:space:]]+"?\
 fi
 
 if ! command -v callgraph >/dev/null 2>&1; then
-  jq -n \
-    '{
-      "hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": "C# code exploration via find/grep/rg/ls is blocked. Use CallGraph skills/tools instead."
-      }
-    }'
-  exit 0
+  allow_command "Allowed: CallGraph unavailable, permitting narrow shell fallback"
 fi
 
 REWRITTEN=$(callgraph rewrite --command "$CMD" 2>/dev/null) || REWRITTEN=""
@@ -159,6 +199,6 @@ jq -n \
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": "deny",
-      "permissionDecisionReason": "C# code exploration via find/grep/rg/ls is blocked. Use CallGraph skills/tools instead."
+      "permissionDecisionReason": "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source, or use one narrow shell fallback only when CallGraph is unavailable."
     }
   }'

@@ -17,6 +17,7 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 - Use daemon mode first: `callgraph search-method ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph search-method ... --no-daemon 2>&1`.
+- For single identifiers or likely type/member names, prefer `--pattern` first instead of `--keywords`.
 - Identifier-known branch:
   - Step 1: if class is known but file is unknown, run `search-file --pattern "*<ClassName>.cs"` with narrow scope.
   - Step 2: run one narrow identifier-based query with `--pattern` (class + method when available).
@@ -27,6 +28,7 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
   - Step 3: switch to identifier/pattern only after keyword results reveal concrete names.
 - Final fallback: `--regex` only for strict pattern matching.
 - Never run parallel/background triangulation searches unless the user explicitly asks for parallel search.
+- If keyword search returns wrappers, extensions, or otherwise weak matches, stop broadening and switch to `search-file` + `list-methods` + `get-method-source` around the most plausible concrete type.
 
 ## Inputs
 - pattern (preferred): identifier-based wildcard pattern like `*AdyenBalanceCommunicationComponent*GetBalanceAccountAsync*`
@@ -45,6 +47,7 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 - After selecting a method, fetch exact implementation text with:
   `callgraph get-method-source --filePath <file.cs> --methodName <name> --containingType <type> --startLine <line> --mode body_only`
 - Prefer `body_only` or `body_without_comments` for token-efficient responses.
+- For behavior/debugging questions, keep tracing until you inspect the implementation that actually shapes filters, queries, or sinks; do not stop at the first wrapper method.
 
 ## Action
 Run CLI:

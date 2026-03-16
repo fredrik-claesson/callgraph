@@ -32,6 +32,8 @@ callgraph analyze --filepath "C:\path\to\file.cs" --method "MethodName" --depth 
 - Do not run broader repo/project discovery first unless the user explicitly asks for it.
 - If user provides class + method but not file, resolve file first via `search-file --pattern "*<ClassName>.cs"` before `analyze`.
 - When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+- Use `analyze` to find relationships and candidate hops, not to infer detailed filter/query behavior by itself.
+- If the question is about behavior, data shaping, or query semantics, use `analyze` to narrow candidates, then inspect the downstream implementation with `get-method-source` or targeted reads until the real sink is found.
 
 ## Visibility (depth strategy)
 Both modes traverse ALL edges including private/internal methods:

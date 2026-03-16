@@ -22,6 +22,8 @@ Parse the user text after the command as:
 - If the target file is known, run `callgraph analyze` directly for that file.
 - Do not run broader repo/project searches first unless the user explicitly asks for discovery.
 - If user provides class + method but not file, resolve file first using `search-file --pattern "*<ClassName>.cs"`.
+- Use `analyze` to find relationships and candidate hops, not to infer detailed filter/query behavior by itself.
+- If the question is about behavior, data shaping, or query semantics, use `analyze` to narrow candidates, then inspect the downstream implementation with `/callgraph-get-method-source` or targeted reads until the real sink is found.
 
 ## Visibility (depth strategy)
 Both modes traverse ALL edges including private/internal methods:

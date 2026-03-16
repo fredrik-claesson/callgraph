@@ -1,6 +1,5 @@
 # C# Code Intelligence
-NEVER use `Grep`, `Glob`, or shell commands (`rg`, `find`, `grep`) for C# code searches.
-ALWAYS use CallGraph skills instead:
+Use CallGraph skills first for C# code discovery whenever they can answer the question precisely:
 - Find methods by name/pattern → `callgraph-search-method`
 - Find files by name → `callgraph-search-file`
 - List methods in a class/file → `callgraph-list-methods`
@@ -9,15 +8,21 @@ ALWAYS use CallGraph skills instead:
 - Semantic/exploratory searches → `callgraph-search-method`
 - Planning and gathering context → `callgraph-analyze-callgraph`
 
+Use shell `rg`/`find`/`grep` only as a narrow fallback when:
+- CallGraph is unavailable or still failing after daemon + `--no-daemon` retry, or
+- the task is no longer exact symbol discovery and requires broader behavior/query tracing that CallGraph cannot answer on its own.
+
 When spawning sub-agents for C# exploration, always include this instruction
 explicitly in the prompt: "Use CallGraph skills (callgraph-search-method,
-callgraph-list-methods, callgraph-analyze-callgraph, and callgraph-get-method-source instead of grep/rg/find."
+callgraph-list-methods, callgraph-analyze-callgraph, and callgraph-get-method-source before falling back to grep/rg/find."
 
 Command execution policy for CallGraph:
 - Always run foreground/blocking commands and always append `2>&1`.
 - Use daemon mode first for latency: `callgraph <command> ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph <command> ... --no-daemon 2>&1`.
+- For exact identifier queries, prefer `search-file` + `list-methods` + `get-method-source` or identifier-based `search-method --pattern` before semantic keyword search.
+- For behavioral questions, use CallGraph to find candidate symbols first, then trace into the real implementation and stop only after you inspect the filter/query/sink logic.
 - Use shell `rg`/`find` only as a last-resort fallback after CallGraph retry still fails to locate targets, and keep fallback to one narrow query.
 - For `callgraph analyze`, if `--visibility internal` is used, `--depth` must be `<= 2`.
 - If deeper internals are needed, use two-stage analysis:
@@ -54,6 +59,9 @@ collecting `method -> direct callees -> important awaits/state changes`.
   - `scope checkpoint`: `file | method(s) | why relevant | confidence`
   - `expansion checkpoint`: `unknowns | next tools | expected value`
 - Prefer method-level discovery first (`callgraph-list-methods` / `callgraph-search-method` / `callgraph-analyze-callgraph` -> `callgraph-get-method-source`).
+- Distinguish lookup from explanation:
+  - exact symbol/file lookup: stay in CallGraph as long as possible
+  - semantic behavior/debugging questions: use CallGraph to narrow candidates, then inspect the concrete implementation that actually shapes data, filters, or queries
 - Full-file `Read` is escalation only and requires an explicit reason.
 - Keep full-file reads minimal (smallest relevant file, no broad sweeps).
 - If two consecutive full-file reads yield no new findings, stop and checkpoint before further reads.

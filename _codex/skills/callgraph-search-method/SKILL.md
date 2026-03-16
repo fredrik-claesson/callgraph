@@ -30,6 +30,7 @@ Choose mode by prompt type:
 
 ## Execution policy
 - Identifier-first branch:
+  - Step 0: for single identifiers or likely type/member names, prefer `--pattern` first instead of `--keywords`.
   - Step 1: if class is known but file is unknown, run `search-file --pattern "*<ClassName>.cs"` with narrow scope.
   - Step 2: run one narrow `search-method --pattern` query using known identifiers (class + method when available).
   - Step 3: if no clear match, loosen one dimension at a time (scope or wildcards), rerun once, then reassess.
@@ -40,6 +41,7 @@ Choose mode by prompt type:
 - Final fallback: use `--regex` only as strict final fallback.
 - Never run parallel/background triangulation searches unless the user explicitly asks for parallel search.
 - Do not start with wildcard-heavy patterns unless explicitly requested.
+- If keyword search returns wrappers, extensions, or otherwise weak matches, stop broadening and switch to `search-file` + `list-methods` + `get-method-source` around the most plausible concrete type.
 
 ## Hard rule (Codex CLI)
 - For this skill, execute exactly one foreground command at a time and wait for completion before any next step.
@@ -74,6 +76,7 @@ callgraph search-method --keywords "login authentication" --solutionId "solution
 - After selecting a method match, use `callgraph get-method-source` to read implementation text:
   `callgraph get-method-source --filePath <file.cs> --methodName <name> --containingType <type> --startLine <line> --mode body_only 2>&1`
 - Prefer `--mode body_only` or `body_without_comments` for token-efficient extraction.
+- For behavior/debugging questions, keep tracing until you inspect the implementation that actually shapes filters, queries, or sinks; do not stop at the first wrapper method.
 
 ## Output
 - Show ranked list of matches (type + display + file + line)

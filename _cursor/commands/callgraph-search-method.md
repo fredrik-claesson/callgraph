@@ -14,6 +14,7 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 - Use daemon mode first: `callgraph search-method ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph search-method ... --no-daemon 2>&1`.
+- For single identifiers or likely type/member names, prefer `--pattern` first instead of `--keywords`.
 - Identifier-known branch:
   - Step 1: if class is known but file is unknown, resolve file with `search-file --pattern "*<ClassName>.cs"` first.
   - Step 2: run one narrow identifier-first query with `--pattern` (class + method when available).
@@ -25,6 +26,7 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 - Final fallback: `--regex` only as strict fallback.
 - Never run parallel/background triangulation searches unless the user explicitly asks for parallel search.
 - Avoid wildcard-heavy first queries unless explicitly requested.
+- If keyword search returns wrappers, extensions, or otherwise weak matches, stop broadening and switch to `search-file` + `list-methods` + `get-method-source` around the most plausible concrete type.
 
 ## Prereqs
 - CallGraph CLI is available (`callgraph` binary or `dotnet run --project CallGraph.csproj --`)
@@ -45,6 +47,7 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 ## Live source follow-up
 - After selecting a method row, use `/callgraph-get-method-source` to fetch exact implementation text.
 - Prefer `--mode body_only` or `--mode body_without_comments` for token-efficient reads.
+- For behavior/debugging questions, keep tracing until you inspect the implementation that actually shapes filters, queries, or sinks; do not stop at the first wrapper method.
 
 ## Action
 Run CLI:
