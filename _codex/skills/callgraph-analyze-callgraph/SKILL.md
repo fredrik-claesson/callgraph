@@ -28,6 +28,8 @@ callgraph analyze --filepath "C:\path\to\file.cs" --method "MethodName" --depth 
 - `solutionPath` / `solutionId`: Only when needed to disambiguate
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph analyze`.
 - If the target file is known, run `callgraph analyze` directly for that file.
 - Do not run broader repo/project discovery first unless the user explicitly asks for it.
 - If user provides class + method but not file, resolve file first via `search-file --pattern "*<ClassName>.cs"` before `analyze`.

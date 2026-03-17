@@ -25,6 +25,8 @@ callgraph search-file --pattern "*Controller.cs" --solutionPath "C:\path\to\solu
 - `solutionPath` (optional): filter to specific solution
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph search-file`.
 - If the exact file path is already known, skip `search-file` and use that path directly in downstream commands.
 - If class name is known and file is unknown, prefer `search-file --pattern "*<ClassName>.cs"` before any semantic method search.
 - If search is needed, start with the narrowest possible pattern.

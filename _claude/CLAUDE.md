@@ -8,6 +8,10 @@ Use CallGraph skills first for C# code discovery whenever they can answer the qu
 - Semantic/exploratory searches → `callgraph-search-method`
 - Planning and gathering context → `callgraph-analyze-callgraph`
 
+Index scope note:
+- CallGraph indexing/analysis excludes test projects and the source files in those test projects.
+- When the task explicitly targets tests, prefer one narrow shell query (`rg`/`find`/`grep`) instead of forcing CallGraph.
+
 Use shell `rg`/`find`/`grep` only as a narrow fallback when:
 - CallGraph is unavailable or still failing after daemon + `--no-daemon` retry, or
 - the task is no longer exact symbol discovery and requires broader behavior/query tracing that CallGraph cannot answer on its own.

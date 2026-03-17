@@ -630,12 +630,17 @@ public sealed class SqliteIndexStore : IIndexStore
             .Select(node => node.Id)
             .Distinct(StringComparer.Ordinal)
             .ToHashSet(StringComparer.Ordinal);
+        var keysToRefresh = existingKeys
+            .Concat(newKeys)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
         var removedKeys = existingKeys
             .Where(existingKey => !newKeys.Contains(existingKey))
             .ToList();
 
-        await DeleteOutboundEdgesForKeysAsync(conn, transaction, solutionId, existingKeys, cancellationToken).ConfigureAwait(false);
+        await DeleteOutboundEdgesForKeysAsync(conn, transaction, solutionId, keysToRefresh, cancellationToken).ConfigureAwait(false);
         await DeleteEdgesForKeysAsync(conn, transaction, solutionId, removedKeys, cancellationToken).ConfigureAwait(false);
+        await DeleteMethodsForKeysAsync(conn, transaction, solutionId, newKeys.ToList(), cancellationToken).ConfigureAwait(false);
         await ExecuteNonQueryAsync(conn, transaction, "DELETE FROM Methods WHERE SolutionId = $id AND FilePath = $file",
             cancellationToken,
             ("$id", solutionId),
@@ -1326,6 +1331,32 @@ public sealed class SqliteIndexStore : IIndexStore
         cmd.CommandText = $"""
             DELETE FROM Edges
             WHERE SolutionId = $id AND FromKey IN ({placeholders});
+            """;
+        cmd.Parameters.AddWithValue("$id", solutionId);
+        for (var i = 0; i < keys.Count; i++)
+        {
+            cmd.Parameters.AddWithValue($"$k{i}", keys[i]);
+        }
+
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task DeleteMethodsForKeysAsync(
+        SqliteConnection conn,
+        SqliteTransaction transaction,
+        string solutionId,
+        IReadOnlyList<string> keys,
+        CancellationToken cancellationToken)
+    {
+        if (keys.Count == 0)
+            return;
+
+        var placeholders = string.Join(", ", keys.Select((_, i) => $"$k{i}"));
+        var cmd = conn.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = $"""
+            DELETE FROM Methods
+            WHERE SolutionId = $id AND Key IN ({placeholders});
             """;
         cmd.Parameters.AddWithValue("$id", solutionId);
         for (var i = 0; i < keys.Count; i++)

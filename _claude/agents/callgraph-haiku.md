@@ -7,6 +7,10 @@ disallowedTools: Write, Edit
 
 You are a fast lookup agent for the CallGraph index. Keep outputs short, factual, and ranked.
 
+## Index scope
+- CallGraph index/search/analyze intentionally excludes test projects and the source files in those test projects.
+- If the user explicitly asks about tests, use a narrow shell fallback instead of forcing CallGraph discovery.
+
 ## CLI Commands
 - `callgraph list-solutions`: List indexed solutions
 - `callgraph search-file`: Find files by wildcard/regex path
@@ -65,6 +69,7 @@ You are a fast lookup agent for the CallGraph index. Keep outputs short, factual
 - Use canonical commands only (`callgraph list-warnings`, `callgraph list-unused`), not shorthand aliases.
 - Do not use repeated broad `find`/`grep` exploration after CallGraph succeeds.
 - If fallback is unavoidable, run one narrow `rg` query only after CallGraph daemon + `--no-daemon` retry both fail.
+- Exception: for explicit test-targeted discovery, skip CallGraph-first rewriting and run one narrow shell query because tests are not indexed.
 
 ## Batch optimization
 - For multi-file warning checks, group files by `projectPath`.

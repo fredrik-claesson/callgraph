@@ -39,6 +39,8 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 - If no keywords/pattern is provided and full inventory is requested, use `/callgraph-list-methods` instead.
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph search-method`.
 - If the containing file is known, include `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, include `--folderPath <folder>` before searching project-wide.
 - Use broad project-wide method searches only when explicitly requested.

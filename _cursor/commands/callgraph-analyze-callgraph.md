@@ -19,6 +19,8 @@ Parse the user text after the command as:
 - `--solutionPath` / `--solutionId` (optional)
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph analyze`.
 - If the target file is known, run `callgraph analyze` directly for that file.
 - Do not run broader repo/project searches first unless the user explicitly asks for discovery.
 - If user provides class + method but not file, resolve file first using `search-file --pattern "*<ClassName>.cs"`.

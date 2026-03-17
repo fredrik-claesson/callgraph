@@ -15,6 +15,8 @@ description: Fast indexed search for C# file paths via CallGraph CLI. Use when a
 - --solutionPath (optional): filter to specific solution
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph search-file`.
 - If the exact file path is already known, skip this skill and use the file path directly in downstream commands.
 - If class name is known and file path is unknown, prefer `--pattern "*<ClassName>.cs"` before semantic method lookup.
 - If search is needed, use the narrowest possible pattern first.

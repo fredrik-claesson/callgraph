@@ -5,6 +5,7 @@ brand_color = "#F59E0B"
 
 default_prompt = """
 List methods using CallGraph CLI command `callgraph list-methods`. Use visibility=external by default (public/protected/protected internal). Use visibility=internal only when non-public methods are explicitly requested. Prefer filePath or folderPath scoping when available. Method signatures are refreshed from live source before output. Output is plain text, one match per line: `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
+Index scope note: test projects and the source files in those test projects are excluded from CallGraph indexing/analysis; for explicit test-targeted discovery, use a narrow shell query instead of forcing CallGraph.
 When implementation text is needed for a selected row, use `callgraph get-method-source` with filePath + methodName + containingType + startLine (prefer `--mode body_only`).
 Execution policy: run foreground command with `2>&1`, use daemon first, retry with `--no-daemon` only on timeout/error/inconsistent output.
 Known issue: in some Codex CLI sessions, CallGraph commands may still hang despite foreground execution. If that happens, rerun Codex with `--yolo`.

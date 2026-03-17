@@ -14,6 +14,8 @@ List C# methods using CallGraph CLI with live signature refresh and visibility f
 - `--solutionPath` / `--solutionId` (optional): filter to specific solution
 
 ## Scope rule
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph list-methods`.
 - If the containing file is known, include `--filePath <file.cs>` to keep results file-scoped.
 - If you need multiple specific files, include `--fileList <path>` (newline-delimited absolute `.cs` paths) instead of shell `for` loops.
 - If only a folder is known, include `--folderPath <folder>` before listing project-wide.

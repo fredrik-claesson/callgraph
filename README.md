@@ -1,6 +1,6 @@
 # CallGraph CLI
 
-CallGraph is a .NET CLI tool that indexes C# solutions with Roslyn and stores a local SQLite index for fast call graph analysis, search, and diagnostics.
+CallGraph is a local-first .NET CLI that indexes C# solutions with Roslyn into a SQLite database for fast call graph analysis, search, and diagnostics.
 
 ## Purpose
 
@@ -8,7 +8,9 @@ CallGraph exists to improve coding-agent and developer workflows for C# codebase
 
 - providing precise, local code intelligence (search, call graph analysis, diagnostics, and live method source extraction)
 - reducing token usage and response latency by replacing broad prompt-based code scanning with targeted local CLI queries
-- shipping agent skill templates in `_claude`, `_codex`, and `_cursor` so agents can use consistent, high-precision CallGraph workflows
+- standardizing agent workflows across Claude, Codex, and Cursor with bundled skills/commands/hooks in `_claude`, `_codex`, and `_cursor`
+- shipping both the CLI runtime and the integration artifacts consumed by `callgraph install`
+- intentionally excluding test projects from index/search/analyze scope to keep production-code discovery fast and precise
 
 ## Key Features
 
@@ -50,6 +52,7 @@ What `install` does:
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
+  - Test-targeted shell searches are left as shell fallback (not rewritten), because test projects are excluded from index scope.
 - Installs `callgraph` command shim:
   - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
