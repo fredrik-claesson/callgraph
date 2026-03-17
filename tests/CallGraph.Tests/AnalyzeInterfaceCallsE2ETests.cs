@@ -797,6 +797,139 @@ public sealed class AnalyzeInterfaceCallsE2ETests
         }
     }
 
+    [Fact]
+    public async Task Analyze_PrivateCallsInLambdaAndLocalHelperChains_AreIndexed()
+    {
+        var solutionPath = GetSolutionPath();
+        var workerPath = Path.Combine(Path.GetDirectoryName(solutionPath)!, "InterfaceCallE2E", "Services", "Worker.cs");
+        var dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.db");
+
+        try
+        {
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
+
+            var indexStore = new SqliteIndexStore(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
+            var solutionLoader = new SolutionLoader(new AllowAllProjectFilter(), new SolutionFileParser());
+            var graphBuilder = new GraphBuilder();
+            var pipeline = new IndexingPipeline(
+                solutionLoader,
+                new ProjectIndexer(),
+                new FileIndexer(solutionLoader),
+                graphBuilder,
+                indexStore,
+                NullLogger<IndexingPipeline>.Instance);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
+                CancellationToken.None);
+
+            var analyzer = new GraphAnalyzer(indexStore, new TargetResolver(solutionLoader), graphBuilder);
+
+            var lambdaResult = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "RunWithLambdaSelfCallAsync",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(lambdaResult.Graph is not null, $"Analyze failed for lambda caller: {lambdaResult.Error?.Kind} - {lambdaResult.Error?.Detail}");
+            var lambdaGraph = lambdaResult.Graph!;
+            var lambdaCaller = FindNodeIdByMethodName(lambdaGraph, "RunWithLambdaSelfCallAsync");
+            var stateUpdateTarget = FindNodeIdByMethodName(lambdaGraph, "ProcessStateUpdateAsync");
+            Assert.True(lambdaCaller is not null, "Missing Worker.RunWithLambdaSelfCallAsync()");
+            Assert.True(stateUpdateTarget is not null, "Missing Worker.ProcessStateUpdateAsync(int)");
+            Assert.Contains(lambdaGraph.Edges, edge => edge.From == lambdaCaller && edge.To == stateUpdateTarget);
+
+            var chargebackResult = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 2,
+                    Method: "BuildChargebackValues",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(chargebackResult.Graph is not null, $"Analyze failed for chargeback helper chain: {chargebackResult.Error?.Kind} - {chargebackResult.Error?.Detail}");
+            var chargebackGraph = chargebackResult.Graph!;
+            var chargebackCaller = FindNodeIdByMethodName(chargebackGraph, "BuildChargebackValues");
+            var unprocessedTarget = FindNodeIdByMethodName(chargebackGraph, "GetUnprocessedValues");
+            var invertedTarget = FindNodeIdByMethodName(chargebackGraph, "GetInvertedValue");
+            Assert.True(chargebackCaller is not null, "Missing Worker.BuildChargebackValues(IEnumerable<int>)");
+            Assert.True(unprocessedTarget is not null, "Missing Worker.GetUnprocessedValues(IEnumerable<int>)");
+            Assert.True(invertedTarget is not null, "Missing Worker.GetInvertedValue(int)");
+            Assert.Contains(chargebackGraph.Edges, edge => edge.From == chargebackCaller && edge.To == unprocessedTarget);
+            Assert.Contains(chargebackGraph.Edges, edge => edge.From == chargebackCaller && edge.To == invertedTarget);
+
+            var timeoutResult = await analyzer.AnalyzeAsync(
+                new AnalyzeRequest(
+                    FilePath: workerPath,
+                    Depth: 1,
+                    Method: "ResolveTimeout",
+                    SolutionPath: solutionPath,
+                    SolutionId: null,
+                    Direction: "outbound",
+                    Visibility: "internal"),
+                CancellationToken.None);
+
+            Assert.True(timeoutResult.Graph is not null, $"Analyze failed for timeout helper call: {timeoutResult.Error?.Kind} - {timeoutResult.Error?.Detail}");
+            var timeoutGraph = timeoutResult.Graph!;
+            var timeoutCaller = FindNodeIdByMethodName(timeoutGraph, "ResolveTimeout");
+            var shouldUseTimeoutTarget = FindNodeIdByMethodName(timeoutGraph, "ShouldUseTimeout");
+            Assert.True(timeoutCaller is not null, "Missing Worker.ResolveTimeout()");
+            Assert.True(shouldUseTimeoutTarget is not null, "Missing Worker.ShouldUseTimeout()");
+            Assert.Contains(timeoutGraph.Edges, edge => edge.From == timeoutCaller && edge.To == shouldUseTimeoutTarget);
+
+            await using var conn = new SqliteConnection($"Data Source={dbPath}");
+            await conn.OpenAsync();
+
+            var unusedPrivateMethods = new List<string>();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT m.Display
+                FROM Methods m
+                LEFT JOIN Edges e
+                  ON e.SolutionId = m.SolutionId
+                 AND e.ToKey = m.Key
+                WHERE e.ToKey IS NULL
+                  AND lower(coalesce(m.Accessibility, '')) = 'private'
+                  AND m.FilePath = $filePath
+                  AND lower(coalesce(m.Kind, '')) NOT IN (
+                    'constructor',
+                    'static-constructor',
+                    'property-get',
+                    'property-set'
+                  )
+                ORDER BY m.StartLine;
+                """;
+            cmd.Parameters.AddWithValue("$filePath", workerPath);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                unusedPrivateMethods.Add(reader.GetString(0));
+            }
+
+            Assert.DoesNotContain(unusedPrivateMethods, method => method.Contains("ProcessStateUpdateAsync", StringComparison.Ordinal));
+            Assert.DoesNotContain(unusedPrivateMethods, method => method.Contains("GetUnprocessedValues", StringComparison.Ordinal));
+            Assert.DoesNotContain(unusedPrivateMethods, method => method.Contains("GetInvertedValue", StringComparison.Ordinal));
+            Assert.DoesNotContain(unusedPrivateMethods, method => method.Contains("ShouldUseTimeout", StringComparison.Ordinal));
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+                File.Delete(dbPath);
+        }
+    }
+
     private static string? FindNodeId(Graph graph, string displaySuffix, string idSuffix)
     {
         var match = graph.Nodes.FirstOrDefault(n => n.Id.EndsWith(idSuffix, StringComparison.Ordinal));

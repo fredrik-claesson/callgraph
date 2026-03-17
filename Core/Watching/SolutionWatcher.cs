@@ -6,6 +6,7 @@ using CallGraph.Core.Solutions;
 using Microsoft.Extensions.Logging;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Document = Microsoft.CodeAnalysis.Document;
 
 namespace CallGraph.Core.Watching;
 
@@ -30,6 +31,8 @@ public sealed class SolutionWatcher : IDisposable
     private long _totalEventsReceived;
     private long _totalEventsProcessed;
     private SolutionLoadContext? _cachedContext;
+    private Dictionary<string, Document>? _cachedDocumentLookup;
+    private Task<DispatchMaps>? _cachedDispatchMaps;
     private readonly SemaphoreSlim _contextLock = new(1, 1);
 
     public SolutionWatcher(
@@ -50,7 +53,8 @@ public sealed class SolutionWatcher : IDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var directories = await ResolveProjectDirectoriesAsync(cancellationToken).ConfigureAwait(false);
+        var startupDirectories = await ResolveStartupDirectoriesAsync(cancellationToken).ConfigureAwait(false);
+        var directories = startupDirectories.Directories;
         var solutionDir = Path.GetDirectoryName(_solutionPath);
         if (!string.IsNullOrWhiteSpace(solutionDir))
             directories.Add(solutionDir);
@@ -83,6 +87,9 @@ public sealed class SolutionWatcher : IDisposable
             _solutionPath,
             _watchers.Count,
             directories.Count);
+
+        if (startupDirectories.FromIndex)
+            _ = WarmCachedContextAsync();
     }
 
     private void AddWatcher(string directory, string filter, bool includeSubdirectories)
@@ -129,6 +136,9 @@ public sealed class SolutionWatcher : IDisposable
         }
         _watchers.Clear();
 
+        _cachedDocumentLookup = null;
+        _cachedDispatchMaps = null;
+
         // Dispose cached context
         if (_cachedContext is not null)
         {
@@ -147,7 +157,56 @@ public sealed class SolutionWatcher : IDisposable
         _contextLock.Dispose();
     }
 
-    private async Task<List<string>> ResolveProjectDirectoriesAsync(CancellationToken cancellationToken)
+    private async Task<(List<string> Directories, bool FromIndex)> ResolveStartupDirectoriesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var directoriesFromIndex = await ResolveProjectDirectoriesFromIndexAsync(cancellationToken).ConfigureAwait(false);
+            if (directoriesFromIndex.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Resolved {DirectoryCount} project directories for watcher from index metadata.",
+                    directoriesFromIndex.Count);
+                return (directoriesFromIndex, true);
+            }
+
+            _logger.LogInformation(
+                "No indexed project paths found for {SolutionPath}; resolving watcher roots from solution load.",
+                _solutionPath);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to resolve watcher roots from index metadata for {SolutionPath}. Falling back to solution load.",
+                _solutionPath);
+        }
+
+        var directoriesFromSolution = await ResolveProjectDirectoriesFromSolutionAsync(cancellationToken).ConfigureAwait(false);
+        return (directoriesFromSolution, false);
+    }
+
+    private async Task<List<string>> ResolveProjectDirectoriesFromIndexAsync(CancellationToken cancellationToken)
+    {
+        var projectPaths = await _indexStore
+            .ListProjectPathsAsync(_solutionPath, cancellationToken)
+            .ConfigureAwait(false);
+
+        return projectPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Select(Path.GetDirectoryName)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<List<string>> ResolveProjectDirectoriesFromSolutionAsync(CancellationToken cancellationToken)
     {
         await using var context = await _solutionLoader
             .LoadAsync(_solutionPath, _slnOnly, cancellationToken)
@@ -162,6 +221,24 @@ public sealed class SolutionWatcher : IDisposable
             .ToList()!;
     }
 
+    private async Task WarmCachedContextAsync()
+    {
+        try
+        {
+            var context = await GetOrLoadContextAsync(_cts.Token).ConfigureAwait(false);
+            _ = await GetOrLoadDocumentLookupAsync(context, _cts.Token).ConfigureAwait(false);
+            _ = await GetOrLoadDispatchMapsAsync(context, _cts.Token).ConfigureAwait(false);
+            _logger.LogTrace("Background context warm-up completed for {SolutionPath}.", _solutionPath);
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Background context warm-up failed for {SolutionPath}.", _solutionPath);
+        }
+    }
+
     private void OnChanged(object sender, FileSystemEventArgs e)
     {
         Interlocked.Increment(ref _totalEventsReceived);
@@ -170,6 +247,12 @@ public sealed class SolutionWatcher : IDisposable
             "Watcher event: Changed {ChangeType} | {FullPath}",
             e.ChangeType,
             e.FullPath);
+
+        if (IsIgnoredPath(e.FullPath))
+        {
+            _logger.LogTrace("Ignoring change in obj/bin path: {FilePath}", e.FullPath);
+            return;
+        }
 
         if (IsSolutionFile(e.FullPath))
         {
@@ -216,6 +299,12 @@ public sealed class SolutionWatcher : IDisposable
             "Watcher event: Deleted | {FullPath}",
             e.FullPath);
 
+        if (IsIgnoredPath(e.FullPath))
+        {
+            _logger.LogTrace("Ignoring deletion in obj/bin path: {FilePath}", e.FullPath);
+            return;
+        }
+
         if (IsSolutionFile(e.FullPath))
         {
             _logger.LogInformation(
@@ -255,7 +344,19 @@ public sealed class SolutionWatcher : IDisposable
             e.OldFullPath,
             e.FullPath);
 
-        if (IsSolutionFile(e.OldFullPath) || IsSolutionFile(e.FullPath))
+        var oldPathIgnored = IsIgnoredPath(e.OldFullPath);
+        var newPathIgnored = IsIgnoredPath(e.FullPath);
+
+        if (oldPathIgnored && newPathIgnored)
+        {
+            _logger.LogTrace(
+                "Ignoring rename in obj/bin path: {OldPath} -> {NewPath}",
+                e.OldFullPath,
+                e.FullPath);
+            return;
+        }
+
+        if ((!oldPathIgnored && IsSolutionFile(e.OldFullPath)) || (!newPathIgnored && IsSolutionFile(e.FullPath)))
         {
             _logger.LogInformation(
                 "Solution/project file renamed: {OldPath} -> {NewPath}. Queueing full reindex.",
@@ -266,7 +367,7 @@ public sealed class SolutionWatcher : IDisposable
         }
 
         // Handle rename as delete old + create new
-        if (IsCodeFile(e.OldFullPath))
+        if (!oldPathIgnored && IsCodeFile(e.OldFullPath))
         {
             _pendingUpdates.TryRemove(e.OldFullPath, out _);
             _pendingDeletes[e.OldFullPath] = DateTime.UtcNow;
@@ -278,7 +379,7 @@ public sealed class SolutionWatcher : IDisposable
                 _eventCounts[e.OldFullPath]);
         }
 
-        if (IsCodeFile(e.FullPath))
+        if (!newPathIgnored && IsCodeFile(e.FullPath))
         {
             // Remove from deletes if it was previously marked for deletion
             if (_pendingDeletes.TryRemove(e.FullPath, out _))
@@ -294,6 +395,27 @@ public sealed class SolutionWatcher : IDisposable
                 e.FullPath,
                 _eventCounts[e.FullPath]);
         }
+    }
+
+    private bool IsIgnoredPath(string path)
+    {
+        var solutionDir = Path.GetDirectoryName(_solutionPath);
+        if (string.IsNullOrWhiteSpace(solutionDir))
+            return false;
+
+        var fullPath = Path.GetFullPath(path);
+        var relativePath = Path.GetRelativePath(solutionDir, fullPath);
+        if (relativePath.Equals("..", StringComparison.Ordinal) ||
+            relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+            relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal))
+            return false;
+
+        var segments = relativePath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+        return segments.Any(segment =>
+            string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase));
     }
 
     private void OnError(object sender, ErrorEventArgs e)
@@ -330,6 +452,9 @@ public sealed class SolutionWatcher : IDisposable
 
     private void InvalidateCachedContext()
     {
+        _cachedDocumentLookup = null;
+        _cachedDispatchMaps = null;
+
         if (_cachedContext is not null)
         {
             _logger.LogTrace("Invalidating cached solution context.");
@@ -345,6 +470,59 @@ public sealed class SolutionWatcher : IDisposable
 
             _cachedContext = null;
         }
+    }
+
+    private async Task<Dictionary<string, Document>> GetOrLoadDocumentLookupAsync(
+        SolutionLoadContext context,
+        CancellationToken cancellationToken)
+    {
+        await _contextLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_cachedDocumentLookup is null)
+            {
+                var documentLookup = new Dictionary<string, Document>(StringComparer.OrdinalIgnoreCase);
+                foreach (var project in context.Projects)
+                {
+                    foreach (var doc in project.Documents)
+                    {
+                        if (!doc.SupportsSyntaxTree || doc.FilePath is null)
+                            continue;
+
+                        var normalized = Path.GetFullPath(doc.FilePath);
+                        documentLookup[normalized] = doc;
+                    }
+                }
+
+                _cachedDocumentLookup = documentLookup;
+            }
+
+            return _cachedDocumentLookup;
+        }
+        finally
+        {
+            _contextLock.Release();
+        }
+    }
+
+    private async Task<DispatchMaps> GetOrLoadDispatchMapsAsync(
+        SolutionLoadContext context,
+        CancellationToken cancellationToken)
+    {
+        Task<DispatchMaps> dispatchMapsTask;
+
+        await _contextLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _cachedDispatchMaps ??= DispatchMapBuilder.BuildAsync(context.Projects, _cts.Token);
+            dispatchMapsTask = _cachedDispatchMaps;
+        }
+        finally
+        {
+            _contextLock.Release();
+        }
+
+        return await dispatchMapsTask.ConfigureAwait(false);
     }
 
     private async Task<SolutionLoadContext> GetOrLoadContextAsync(CancellationToken cancellationToken)
@@ -386,23 +564,10 @@ public sealed class SolutionWatcher : IDisposable
 
         // Get or load cached context
         var context = await GetOrLoadContextAsync(cancellationToken).ConfigureAwait(false);
-
-        // Build document lookup from cached context
-        var documentLookup = new Dictionary<string, Microsoft.CodeAnalysis.Document>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in context.Projects)
-        {
-            foreach (var doc in project.Documents)
-            {
-                if (!doc.SupportsSyntaxTree || doc.FilePath is null)
-                    continue;
-
-                var normalized = Path.GetFullPath(doc.FilePath);
-                documentLookup[normalized] = doc;
-            }
-        }
+        var documentLookup = await GetOrLoadDocumentLookupAsync(context, cancellationToken).ConfigureAwait(false);
 
         var dispatchMaps = new Lazy<Task<DispatchMaps>>(
-            () => DispatchMapBuilder.BuildAsync(context.Projects, cancellationToken));
+            () => GetOrLoadDispatchMapsAsync(context, cancellationToken));
 
         var results = new System.Collections.Concurrent.ConcurrentBag<FileIndex>();
         await Parallel.ForEachAsync(normalizedFilePaths, cancellationToken, async (normalizedFilePath, ct) =>

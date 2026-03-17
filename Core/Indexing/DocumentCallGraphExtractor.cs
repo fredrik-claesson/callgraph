@@ -35,59 +35,62 @@ internal static class DocumentCallGraphExtractor
             nodes.Add(IndexedCallableNodeFactory.Create(caller, declaration.GetLocation()));
 
             var rootOperation = GetBodyOperation(model, declaration, cancellationToken);
-            if (rootOperation is null)
-                continue;
-
-            foreach (var operation in EnumerateOperations(rootOperation))
+            if (rootOperation is not null)
             {
-                switch (operation)
+                foreach (var operation in EnumerateOperations(rootOperation))
                 {
-                    case IInvocationOperation invocation:
+                    switch (operation)
                     {
-                        var callee = invocation.TargetMethod;
-                        AddMethodEdge(edges, edgeKeys, nodes, callerKey, callee, "calls-direct");
-
-                        if (IsInterfaceCall(invocation, out var interfaceMethod))
+                        case IInvocationOperation invocation:
                         {
+                            var callee = invocation.TargetMethod;
+                            AddMethodEdge(edges, edgeKeys, nodes, callerKey, callee, "calls-direct");
+
                             dispatchMaps ??= await getDispatchMaps().ConfigureAwait(false);
-                            AddInterfaceImplementationEdges(
+                            if (IsInterfaceCall(invocation, out var interfaceMethod))
+                            {
+                                AddInterfaceImplementationEdges(
+                                    edges,
+                                    edgeKeys,
+                                    nodes,
+                                    callerKey,
+                                    interfaceMethod!,
+                                    dispatchMaps.InterfaceImplementations);
+                            }
+
+                            AddPublishedMessageHandlerEdges(
                                 edges,
                                 edgeKeys,
                                 nodes,
                                 callerKey,
-                                interfaceMethod!,
-                                dispatchMaps.InterfaceImplementations);
+                                invocation,
+                                callee,
+                                dispatchMaps.MessageHandlers);
+                            break;
                         }
-
-                        dispatchMaps ??= await getDispatchMaps().ConfigureAwait(false);
-                        AddPublishedMessageHandlerEdges(
-                            edges,
-                            edgeKeys,
-                            nodes,
-                            callerKey,
-                            invocation,
-                            callee,
-                            dispatchMaps.MessageHandlers);
-                        break;
+                        case IObjectCreationOperation objectCreation when objectCreation.Constructor is not null:
+                            AddMethodEdge(edges, edgeKeys, nodes, callerKey, objectCreation.Constructor, "calls-direct");
+                            break;
+                        case IDelegateCreationOperation delegateCreation:
+                        {
+                            var targetMethod = ExtractReferencedMethod(delegateCreation.Target);
+                            if (targetMethod is not null)
+                                AddMethodEdge(edges, edgeKeys, nodes, callerKey, targetMethod, "calls-via-delegate");
+                            break;
+                        }
+                        case IPropertyReferenceOperation propertyReference:
+                            AddPropertyAccessorEdges(edges, edgeKeys, nodes, callerKey, propertyReference);
+                            break;
+                        case IEventAssignmentOperation eventAssignment:
+                            AddEventAccessorEdges(edges, edgeKeys, nodes, callerKey, eventAssignment);
+                            break;
                     }
-                    case IObjectCreationOperation objectCreation when objectCreation.Constructor is not null:
-                        AddMethodEdge(edges, edgeKeys, nodes, callerKey, objectCreation.Constructor, "calls-direct");
-                        break;
-                    case IDelegateCreationOperation delegateCreation:
-                    {
-                        var targetMethod = ExtractReferencedMethod(delegateCreation.Target);
-                        if (targetMethod is not null)
-                            AddMethodEdge(edges, edgeKeys, nodes, callerKey, targetMethod, "calls-via-delegate");
-                        break;
-                    }
-                    case IPropertyReferenceOperation propertyReference:
-                        AddPropertyAccessorEdges(edges, edgeKeys, nodes, callerKey, propertyReference);
-                        break;
-                    case IEventAssignmentOperation eventAssignment:
-                        AddEventAccessorEdges(edges, edgeKeys, nodes, callerKey, eventAssignment);
-                        break;
                 }
             }
+
+            // Fallback: recover direct invocation edges from syntax when Roslyn IOperation misses parts of a method body.
+            // This protects private-method inbound indexing against false "unused" positives.
+            AddSyntaxInvocationEdges(model, declaration, caller, callerKey, edges, edgeKeys, nodes);
         }
 
         return new DocumentCallGraph(
@@ -147,6 +150,126 @@ internal static class DocumentCallGraphExtractor
                 stack.Push(child);
             }
         }
+    }
+
+    private static void AddSyntaxInvocationEdges(
+        SemanticModel model,
+        SyntaxNode declaration,
+        IMethodSymbol caller,
+        string callerKey,
+        ICollection<Edge> edges,
+        HashSet<string> edgeKeys,
+        ICollection<Node> nodes)
+    {
+        var bodySyntax = GetBodySyntax(declaration);
+        if (bodySyntax is null)
+            return;
+
+        var containingType = caller.ContainingType;
+        var sameTypeMethods = containingType?
+            .GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(m => m.MethodKind is MethodKind.Ordinary or MethodKind.LocalFunction)
+            .ToList();
+
+        foreach (var invocation in bodySyntax.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<InvocationExpressionSyntax>())
+        {
+            var callee = TryResolveInvokedMethod(model, invocation, containingType, sameTypeMethods);
+            if (callee is null)
+                continue;
+
+            AddMethodEdge(edges, edgeKeys, nodes, callerKey, callee, "calls-direct");
+        }
+    }
+
+    private static SyntaxNode? GetBodySyntax(SyntaxNode declaration)
+    {
+        return declaration switch
+        {
+            BaseMethodDeclarationSyntax method when method.Body is not null => method.Body,
+            BaseMethodDeclarationSyntax method when method.ExpressionBody is not null => method.ExpressionBody.Expression,
+            LocalFunctionStatementSyntax localFunction when localFunction.Body is not null => localFunction.Body,
+            LocalFunctionStatementSyntax localFunction when localFunction.ExpressionBody is not null => localFunction.ExpressionBody.Expression,
+            AccessorDeclarationSyntax accessor when accessor.Body is not null => accessor.Body,
+            AccessorDeclarationSyntax accessor when accessor.ExpressionBody is not null => accessor.ExpressionBody.Expression,
+            _ => null
+        };
+    }
+
+    private static IMethodSymbol? TryResolveInvokedMethod(
+        SemanticModel model,
+        InvocationExpressionSyntax invocation,
+        INamedTypeSymbol? containingType,
+        IReadOnlyList<IMethodSymbol>? sameTypeMethods)
+    {
+        var symbolInfo = model.GetSymbolInfo(invocation);
+        var symbol = symbolInfo.Symbol as IMethodSymbol
+                     ?? symbolInfo.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+        if (symbol is not null)
+            return symbol;
+
+        if (!TryGetSameTypeInvokedMethodName(invocation.Expression, out var methodName))
+            return null;
+
+        if (containingType is null || sameTypeMethods is null || sameTypeMethods.Count == 0)
+            return null;
+
+        var argumentCount = invocation.ArgumentList.Arguments.Count;
+        var candidates = sameTypeMethods
+            .Where(m => string.Equals(m.Name, methodName, StringComparison.Ordinal))
+            .Where(m => IsArityCompatible(m, argumentCount))
+            .ToList();
+
+        if (candidates.Count == 1)
+            return candidates[0];
+
+        var exactArity = candidates.Where(m => m.Parameters.Length == argumentCount).ToList();
+        return exactArity.Count == 1 ? exactArity[0] : null;
+    }
+
+    private static bool TryGetSameTypeInvokedMethodName(ExpressionSyntax expression, out string methodName)
+    {
+        methodName = string.Empty;
+
+        switch (expression)
+        {
+            case IdentifierNameSyntax identifier:
+                methodName = identifier.Identifier.ValueText;
+                return true;
+
+            case GenericNameSyntax generic:
+                methodName = generic.Identifier.ValueText;
+                return true;
+
+            case MemberAccessExpressionSyntax memberAccess when memberAccess.Expression is ThisExpressionSyntax or BaseExpressionSyntax:
+                if (memberAccess.Name is GenericNameSyntax genericMember)
+                {
+                    methodName = genericMember.Identifier.ValueText;
+                    return true;
+                }
+
+                methodName = memberAccess.Name.Identifier.ValueText;
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsArityCompatible(IMethodSymbol method, int argumentCount)
+    {
+        var parameters = method.Parameters;
+        if (parameters.Length == 0)
+            return argumentCount == 0;
+
+        var requiredCount = parameters.Count(p => !p.IsOptional && !p.IsParams);
+        if (argumentCount < requiredCount)
+            return false;
+
+        if (parameters[^1].IsParams)
+            return true;
+
+        return argumentCount <= parameters.Length;
     }
 
     private static void AddMethodEdge(

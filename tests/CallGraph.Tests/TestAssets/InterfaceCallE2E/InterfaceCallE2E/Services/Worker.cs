@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using InterfaceCallE2E.Contracts.Notifications;
 using InterfaceCallE2E.Contracts.Services;
 
@@ -42,6 +45,27 @@ public class Worker
         ExecuteCallback(DelegateStep);
     }
 
+    public async Task RunWithLambdaSelfCallAsync()
+    {
+        await ExecuteStateAsync(
+            state => ProcessStateUpdateAsync(state),
+            () => Task.CompletedTask);
+    }
+
+    public IEnumerable<int> BuildChargebackValues(IEnumerable<int> values)
+    {
+        var unprocessedValues = GetUnprocessedValues(values);
+        foreach (var value in unprocessedValues)
+        {
+            yield return GetInvertedValue(value);
+        }
+    }
+
+    public TimeSpan? ResolveTimeout()
+    {
+        return ShouldUseTimeout() ? TimeSpan.FromMinutes(5) : null;
+    }
+
     public string ReadHelperBackedValue()
     {
         return HelperBackedValue;
@@ -80,6 +104,36 @@ public class Worker
     private static void ExecuteCallback(Action callback)
     {
         callback();
+    }
+
+    private static async Task ExecuteStateAsync(Func<int, Task> onSuccess, Func<Task> onFallback)
+    {
+        await onSuccess(1);
+        await onFallback();
+    }
+
+    private Task ProcessStateUpdateAsync(int state)
+    {
+        _helper.Help();
+        return Task.CompletedTask;
+    }
+
+    private static IEnumerable<int> GetUnprocessedValues(IEnumerable<int> values)
+    {
+        foreach (var value in values.Where(v => v > 0))
+        {
+            yield return value;
+        }
+    }
+
+    private static int GetInvertedValue(int value)
+    {
+        return -value;
+    }
+
+    private bool ShouldUseTimeout()
+    {
+        return true;
     }
 
     private void DelegateStep()
