@@ -9,6 +9,77 @@ namespace CallGraph.Tests;
 public sealed class SqliteIndexStoreIncrementalUpdateTests
 {
     [Fact]
+    public async Task SaveAsync_StoresAllIndexedPathsRelativeToInvocationDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-sqlite-relative-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        var repoRoot = Path.Combine(tempDir, "repo");
+        var srcDir = Path.Combine(repoRoot, "src");
+        Directory.CreateDirectory(srcDir);
+
+        var dbPath = Path.Combine(tempDir, "index.db");
+        var solutionPath = Path.Combine(srcDir, "Mews.sln");
+        var projectPath = Path.Combine(srcDir, "Mews.csproj");
+        var filePath = Path.Combine(srcDir, "Payments", "Gateway.cs");
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+
+        File.WriteAllText(solutionPath, string.Empty);
+        File.WriteAllText(projectPath, "<Project />");
+        File.WriteAllText(filePath, "namespace Demo; public class Gateway { public void Run() {} }");
+
+        var previousCwd = Environment.CurrentDirectory;
+
+        try
+        {
+            Environment.CurrentDirectory = repoRoot;
+            var store = CreateStore(dbPath);
+
+            var index = new SolutionIndex
+            {
+                SolutionId = "solution-relative",
+                SolutionPath = solutionPath,
+                IndexedAtUtc = DateTime.UtcNow,
+                SlnOnly = true,
+                Nodes =
+                [
+                    CreateNode("Asm:Demo.Gateway.Run()", filePath, "Demo.Gateway", "Gateway.Run()")
+                ],
+                Edges = [],
+                ProjectPaths = [projectPath]
+            };
+
+            var invocationCwd = Environment.CurrentDirectory;
+            await store.SaveAsync(index, CancellationToken.None);
+
+            await using var conn = new SqliteConnection($"Data Source={dbPath}");
+            await conn.OpenAsync();
+
+            var solutionStoredPath = await ReadScalarAsync(conn, "SELECT Path FROM Solutions WHERE Id = 'solution-relative'");
+            var projectStoredPath = await ReadScalarAsync(conn, "SELECT Path FROM Projects WHERE SolutionId = 'solution-relative'");
+            var fileStoredPath = await ReadScalarAsync(conn, "SELECT Path FROM Files WHERE SolutionId = 'solution-relative'");
+            var methodStoredPath = await ReadScalarAsync(conn, "SELECT FilePath FROM Methods WHERE SolutionId = 'solution-relative'");
+
+            Assert.Equal(Path.GetRelativePath(invocationCwd, solutionPath), solutionStoredPath);
+            Assert.Equal(Path.GetRelativePath(invocationCwd, projectPath), projectStoredPath);
+            Assert.Equal(Path.GetRelativePath(invocationCwd, filePath), fileStoredPath);
+            Assert.Equal(Path.GetRelativePath(invocationCwd, filePath), methodStoredPath);
+
+            Assert.False(Path.IsPathRooted(solutionStoredPath));
+            Assert.False(Path.IsPathRooted(projectStoredPath));
+            Assert.False(Path.IsPathRooted(fileStoredPath));
+            Assert.False(Path.IsPathRooted(methodStoredPath));
+        }
+        finally
+        {
+            Environment.CurrentDirectory = previousCwd;
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task UpdateFileAsync_MethodKeyMovesToDifferentFile_RehomesMethodWithoutDuplicateKeyFailure()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-sqlite-{Guid.NewGuid():N}");
@@ -110,4 +181,12 @@ public sealed class SqliteIndexStoreIncrementalUpdateTests
             Direction = "outbound",
             Kind = "calls-direct"
         };
+
+    private static async Task<string> ReadScalarAsync(SqliteConnection conn, string sql)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        var result = await cmd.ExecuteScalarAsync();
+        return Assert.IsType<string>(result);
+    }
 }

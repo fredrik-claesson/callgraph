@@ -30,10 +30,12 @@ Windows:
 ```
 
 Installer behavior:
-- Copies bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist (`~/.claude`, `~/.codex`, `~/.cursor`).
+- Copies bundled `_claude`, `_codex`, `_cursor`, `_copilot`, `_opencode` only when matching target directories already exist (`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.config/opencode`).
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Never auto-merges `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
+- For Copilot CLI, installs reusable assets in `~/.copilot` and prints a manual step for enabling repository hooks from `.github/hooks/*.json`.
+- For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` including plugin-based hook policy.
 - Installs `callgraph` shim:
   - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
@@ -98,7 +100,7 @@ By default, `serve` exits after 10 hours of inactivity. Override with `callgraph
 ## Optional install flags
 
 - `--skip-skills`: only install command shim
-- `--skip-shim`: only deploy `_claude`/`_codex`/`_cursor`
+- `--skip-shim`: only deploy `_claude`/`_codex`/`_cursor`/`_copilot`/`_opencode`
 - `--skip-path`: Windows only, do not update user PATH
 - `--home <path>`: alternate home directory
 - `--binDir <path>`: alternate shim install directory

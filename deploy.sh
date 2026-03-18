@@ -66,6 +66,8 @@ fi
 copy_content "$SCRIPT_DIR/_claude" "$HOME/.claude"
 copy_content "$SCRIPT_DIR/_codex" "$HOME/.codex"
 copy_content "$SCRIPT_DIR/_cursor" "$HOME/.cursor"
+copy_content "$SCRIPT_DIR/_copilot" "$HOME/.copilot"
+copy_content "$SCRIPT_DIR/_opencode" "$HOME/.config/opencode"
 configure_claude_hook
 
 echo "Done."

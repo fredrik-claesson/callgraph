@@ -8,7 +8,7 @@ CallGraph exists to improve coding-agent and developer workflows for C# codebase
 
 - providing precise, local code intelligence (search, call graph analysis, diagnostics, and live method source extraction)
 - reducing token usage and response latency by replacing broad prompt-based code scanning with targeted local CLI queries
-- standardizing agent workflows across Claude, Codex, and Cursor with bundled skills/commands/hooks in `_claude`, `_codex`, and `_cursor`
+- standardizing agent workflows across Claude, Codex, Cursor, Copilot CLI, and OpenCode with bundled skills/commands/hooks in `_claude`, `_codex`, `_cursor`, `_copilot`, and `_opencode`
 - shipping both the CLI runtime and the integration artifacts consumed by `callgraph install`
 - intentionally excluding test projects from index/search/analyze scope to keep production-code discovery fast and precise
 
@@ -48,11 +48,13 @@ On Windows:
 ```
 
 What `install` does:
-- Deploys bundled `_claude`, `_codex`, `_cursor` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`).
+- Deploys bundled `_claude`, `_codex`, `_cursor`, `_copilot`, `_opencode` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.config/opencode`).
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
   - Test-targeted shell searches are left as shell fallback (not rewritten), because test projects are excluded from index scope.
+- For Copilot CLI, installs reusable skills/agent assets in `~/.copilot` and prints a manual step for enabling hooks from repository `.github/hooks/*.json`.
+- For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` (including a plugin-based pre-tool hook policy in `plugins/callgraph-hooks.js`).
 - Installs `callgraph` command shim:
   - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
   - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)

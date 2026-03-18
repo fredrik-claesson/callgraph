@@ -67,5 +67,11 @@
     <Content Include="_cursor\**\*" Exclude="_cursor\**\.DS_Store">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="_copilot\**\*" Exclude="_copilot\**\.DS_Store">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="_opencode\**\*" Exclude="_opencode\**\.DS_Store">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

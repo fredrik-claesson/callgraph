@@ -7,9 +7,11 @@ namespace CallGraph;
 
 internal static class InstallCommandRunner
 {
-    private static readonly string[] AssetDirectories = ["_claude", "_codex", "_cursor"];
+    private static readonly string[] AssetDirectories = ["_claude", "_codex", "_cursor", "_copilot", "_opencode"];
     private static readonly string[] SectionTemplateNames = ["AGENTS.md", "CLAUDE.md"];
     private const string ClaudeHookRelativePath = "hooks/callgraph-rewrite.sh";
+    private const string CopilotHookScriptRelativePath = "hooks/callgraph-pretooluse.sh";
+    private const string CopilotHookTemplateRelativePath = "hooks/callgraph-pretooluse.hooks.json";
 
     public static async Task<ToolExecutionResult> RunAsync(ToolCommand tool, CancellationToken cancellationToken)
     {
@@ -32,7 +34,7 @@ internal static class InstallCommandRunner
         if (sourceRoot is null)
         {
             return ToolExecutionResult.FromError(
-                "Install assets not found next to executable. Ensure publish output includes _claude/_codex/_cursor.");
+                "Install assets not found next to executable. Ensure publish output includes _claude/_codex/_cursor/_copilot/_opencode.");
         }
 
         var messages = new List<string>();
@@ -45,10 +47,7 @@ internal static class InstallCommandRunner
                 if (!Directory.Exists(sourcePath))
                     continue;
 
-                var targetRootName = sourceName.StartsWith("_", StringComparison.Ordinal)
-                    ? $".{sourceName[1..]}"
-                    : sourceName;
-                var targetPath = Path.Combine(homeDir, targetRootName);
+                var targetPath = GetInstallTargetPath(homeDir, sourceName);
 
                 if (!Directory.Exists(targetPath))
                 {
@@ -62,6 +61,12 @@ internal static class InstallCommandRunner
 
                 if (string.Equals(sourceName, "_claude", StringComparison.Ordinal))
                     EnsureClaudeRewriteHookConfigured(targetPath, messages);
+
+                if (string.Equals(sourceName, "_copilot", StringComparison.Ordinal))
+                    AddCopilotHookSetupGuidance(targetPath, messages);
+
+                if (string.Equals(sourceName, "_opencode", StringComparison.Ordinal))
+                    AddOpenCodeSetupGuidance(targetPath, messages);
             }
         }
 
@@ -88,7 +93,7 @@ internal static class InstallCommandRunner
         if (messages.Count == 0)
             messages.Add("Nothing to install.");
 
-        return new ToolExecutionResult(0, string.Join(Environment.NewLine, messages), null);
+        return new ToolExecutionResult(0, FormatInstallOutput(messages), null);
     }
 
     private static string? ResolveSourceRoot()
@@ -130,6 +135,18 @@ internal static class InstallCommandRunner
             return home;
 
         return null;
+    }
+
+    private static string GetInstallTargetPath(string homeDir, string sourceName)
+    {
+        if (string.Equals(sourceName, "_opencode", StringComparison.Ordinal))
+            return Path.Combine(homeDir, ".config", "opencode");
+
+        var targetRootName = sourceName.StartsWith("_", StringComparison.Ordinal)
+            ? $".{sourceName[1..]}"
+            : sourceName;
+
+        return Path.Combine(homeDir, targetRootName);
     }
 
     private static (List<string> Messages, string? Error) InstallWindowsShim(
@@ -550,6 +567,135 @@ internal static class InstallCommandRunner
             messages.Add(
                 $"Manual step: could not update {settingsPath} ({ex.Message}). Add a PreToolUse hook pointing to {hookPath}.");
         }
+    }
+
+    private static void AddCopilotHookSetupGuidance(string copilotRoot, List<string> messages)
+    {
+        var hookScriptPath = Path.Combine(copilotRoot, CopilotHookScriptRelativePath);
+        if (File.Exists(hookScriptPath))
+            TryEnsureExecutable(hookScriptPath);
+
+        var hookTemplatePath = Path.Combine(copilotRoot, CopilotHookTemplateRelativePath);
+        if (!File.Exists(hookTemplatePath))
+        {
+            messages.Add($"Warning: Copilot hook template not found: {hookTemplatePath}");
+            return;
+        }
+
+        messages.Add(
+            $"Manual step (Copilot CLI): copy {hookTemplatePath} to <repo>/.github/hooks/callgraph-pretooluse.hooks.json " +
+            $"because Copilot CLI loads hooks from the current working directory.");
+    }
+
+    private static void AddOpenCodeSetupGuidance(string openCodeRoot, List<string> messages)
+    {
+        var pluginPath = Path.Combine(openCodeRoot, "plugins", "callgraph-hooks.js");
+        if (!File.Exists(pluginPath))
+        {
+            messages.Add($"Warning: OpenCode plugin hook not found: {pluginPath}");
+            return;
+        }
+
+        messages.Add($"Info: OpenCode local hook plugin deployed to {pluginPath}.");
+        messages.Add($"Info: OpenCode auto-loads local plugins from {Path.Combine(openCodeRoot, "plugins")}.");
+    }
+
+    private static string FormatInstallOutput(IReadOnlyList<string> messages)
+    {
+        var manualSteps = new List<string>();
+        var deployed = new List<string>();
+        var shim = new List<string>();
+        var skipped = new List<string>();
+        var warnings = new List<string>();
+        var details = new List<string>();
+
+        foreach (var message in messages)
+        {
+            if (message.StartsWith("Manual step", StringComparison.Ordinal))
+            {
+                manualSteps.Add(message);
+                continue;
+            }
+
+            if (message.StartsWith("Deployed ", StringComparison.Ordinal))
+            {
+                deployed.Add(message);
+                continue;
+            }
+
+            if (message.StartsWith("Installed ", StringComparison.Ordinal) ||
+                message.StartsWith("Removed duplicate callgraph symlink:", StringComparison.Ordinal) ||
+                message.StartsWith("Added CallGraph install directory to user PATH", StringComparison.Ordinal) ||
+                message.StartsWith("User PATH already contains CallGraph install directory.", StringComparison.Ordinal))
+            {
+                shim.Add(message);
+                continue;
+            }
+
+            if (message.StartsWith("Skipped ", StringComparison.Ordinal))
+            {
+                skipped.Add(message);
+                continue;
+            }
+
+            if (message.StartsWith("Warning:", StringComparison.Ordinal))
+            {
+                warnings.Add(message);
+                continue;
+            }
+
+            details.Add(message);
+        }
+
+        var lines = new List<string>
+        {
+            "=== INSTALL SUMMARY ===",
+            $"Assets deployed: {deployed.Count}",
+            $"Manual steps: {manualSteps.Count}",
+            $"Warnings: {warnings.Count}",
+            $"Skipped targets: {skipped.Count}",
+            string.Empty
+        };
+
+        AddNumberedSection(lines, "MANUAL STEPS (ACTION REQUIRED)", manualSteps);
+        AddBulletedSection(lines, "DEPLOYED ASSETS", deployed);
+        AddBulletedSection(lines, "INSTALLATION DETAILS", details);
+        AddBulletedSection(lines, "SHIM INSTALLATION", shim);
+        AddBulletedSection(lines, "SKIPPED", skipped);
+        AddBulletedSection(lines, "WARNINGS", warnings);
+
+        if (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[^1]))
+            lines.RemoveAt(lines.Count - 1);
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static void AddNumberedSection(List<string> lines, string title, IReadOnlyList<string> items)
+    {
+        lines.Add($"=== {title} ===");
+        if (items.Count == 0)
+        {
+            lines.Add("None.");
+        }
+        else
+        {
+            for (var i = 0; i < items.Count; i++)
+                lines.Add($"{i + 1}. {items[i]}");
+        }
+
+        lines.Add(string.Empty);
+    }
+
+    private static void AddBulletedSection(List<string> lines, string title, IReadOnlyList<string> items)
+    {
+        if (items.Count == 0)
+            return;
+
+        lines.Add($"=== {title} ===");
+        foreach (var item in items)
+            lines.Add($"- {item}");
+
+        lines.Add(string.Empty);
     }
 
     private static bool HasClaudeHook(JsonObject root, string hookPath)

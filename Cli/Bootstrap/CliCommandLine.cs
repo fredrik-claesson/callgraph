@@ -38,9 +38,11 @@ internal static class CliCommandLine
 
             Notes:
               - Analysis commands auto-start and reuse a background daemon by default.
-              - install deploys bundled _claude/_codex/_cursor only when matching ~/.claude ~/.codex ~/.cursor directories already exist.
+              - install deploys bundled _claude/_codex/_cursor/_copilot/_opencode only when matching ~/.claude ~/.codex ~/.cursor ~/.copilot ~/.config/opencode directories already exist.
               - install overwrites existing skill/agent/command files in those directories with the bundled versions.
               - install never auto-merges AGENTS.md/CLAUDE.md; it prints manual append instructions instead.
+              - Copilot CLI hooks are repository-scoped; install prints a manual copy step for .github/hooks.
+              - OpenCode hooks are plugin-based; install deploys the local plugin hook to ~/.config/opencode/plugins.
               - install creates callgraph shim in a writable PATH directory on macOS/Linux (fallback ~/.local/bin), or %LocalAppData%\Programs\callgraph on Windows.
               - on macOS/Linux, install removes duplicate callgraph symlinks found on PATH (keeps the newly installed shim).
               - install updates Windows user PATH unless --skip-path is provided.
