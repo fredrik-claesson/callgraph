@@ -147,6 +147,18 @@ internal sealed class ToolCommandExecutor
                     .SearchFilesAsync(pattern, regex, solutionPath, solutionId, folderPath, filePath, cancellationToken)
                     .ConfigureAwait(false);
 
+                if (solutionPath is null && solutionId is null)
+                {
+                    var distinctSolutionIds = matches
+                        .Select(m => m.SolutionId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    if (distinctSolutionIds.Count > 1)
+                        return ToolExecutionResult.FromError(
+                            $"Results span {distinctSolutionIds.Count} indexed solutions. Use --solutionPath or --solutionId to scope to a single solution.");
+                }
+
                 const int limit = 200;
                 if (matches.Count > limit)
                 {
@@ -180,6 +192,18 @@ internal sealed class ToolCommandExecutor
                 var matches = await hybridMethodSearch
                     .SearchAsync(queryText, regex, solutionPath, solutionId, folderPath, filePath, cancellationToken)
                     .ConfigureAwait(false);
+
+                if (solutionPath is null && solutionId is null)
+                {
+                    var distinctSolutionIds = matches
+                        .Select(m => m.SolutionId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    if (distinctSolutionIds.Count > 1)
+                        return ToolExecutionResult.FromError(
+                            $"Results span {distinctSolutionIds.Count} indexed solutions. Use --solutionPath or --solutionId to scope to a single solution.");
+                }
 
                 const int limit = 200;
                 if (matches.Count > limit)
@@ -223,6 +247,18 @@ internal sealed class ToolCommandExecutor
                         fileList,
                         cancellationToken)
                     .ConfigureAwait(false);
+
+                if (solutionPath is null && solutionId is null)
+                {
+                    var distinctSolutionIds = liveMatches
+                        .Select(m => m.SolutionId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    if (distinctSolutionIds.Count > 1)
+                        return ToolExecutionResult.FromError(
+                            $"Results span {distinctSolutionIds.Count} indexed solutions. Use --solutionPath or --solutionId to scope to a single solution.");
+                }
 
                 if (liveMatches.Count > limit)
                 {
