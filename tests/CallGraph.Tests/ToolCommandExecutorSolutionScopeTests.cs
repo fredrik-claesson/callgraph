@@ -76,6 +76,38 @@ public sealed class ToolCommandExecutorSolutionScopeTests
     }
 
     [Fact]
+    public async Task SearchFile_IncludeTestsFalse_ExcludesTestProjectFiles()
+    {
+        var store = new ScopeStubIndexStore(
+            fileMatches:
+            [
+                new SearchFileMatch("sol-1", "/repo1/One.sln", "/repo1/src/App/Payments.cs"),
+                new SearchFileMatch("sol-1", "/repo1/One.sln", "/repo1/tests/App.Tests/PaymentsTests.cs")
+            ],
+            projectPathsBySolution: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["/repo1/One.sln"] =
+                [
+                    "/repo1/src/App/App.csproj",
+                    "/repo1/tests/App.Tests/App.Tests.csproj"
+                ]
+            });
+        var executor = CreateExecutor(store);
+        var command = new ToolCommand("search-file", new Dictionary<string, string?>
+        {
+            ["pattern"] = "*.cs",
+            ["includeTests"] = "false"
+        });
+
+        var result = await executor.ExecuteAsync(command, CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.NotNull(result.Stdout);
+        Assert.Contains("/repo1/src/App/Payments.cs", result.Stdout, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/repo1/tests/App.Tests/PaymentsTests.cs", result.Stdout, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SearchMethod_WithoutSolutionScope_ErrorsWhenResultsSpanMultipleSolutions()
     {
         var methodMatches = new[]
@@ -109,6 +141,39 @@ public sealed class ToolCommandExecutorSolutionScopeTests
         var result = await executor.ExecuteAsync(command, CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public async Task SearchMethod_IncludeTestsFalse_ExcludesTestProjectMethods()
+    {
+        var methodMatches = new[]
+        {
+            MakeMethodMatch("sol-1", "/repo1/One.sln", "Asm:Repo1.Payments.Run()", "/repo1/src/App/Payments.cs"),
+            MakeMethodMatch("sol-1", "/repo1/One.sln", "Asm:Repo1.PaymentsTests.Run()", "/repo1/tests/App.Tests/PaymentsTests.cs")
+        };
+        var store = new ScopeStubIndexStore(
+            methodMatches: methodMatches,
+            projectPathsBySolution: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["/repo1/One.sln"] =
+                [
+                    "/repo1/src/App/App.csproj",
+                    "/repo1/tests/App.Tests/App.Tests.csproj"
+                ]
+            });
+        var executor = CreateExecutor(store);
+        var command = new ToolCommand("search-method", new Dictionary<string, string?>
+        {
+            ["keywords"] = "Run",
+            ["includeTests"] = "false"
+        });
+
+        var result = await executor.ExecuteAsync(command, CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.NotNull(result.Stdout);
+        Assert.Contains("/repo1/src/App/Payments.cs", result.Stdout, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/repo1/tests/App.Tests/PaymentsTests.cs", result.Stdout, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -184,12 +249,31 @@ public sealed class ToolCommandExecutorSolutionScopeTests
         }
     }
 
-    private static ToolCommandExecutor CreateExecutor(ScopeStubIndexStore store)
+    [Fact]
+    public async Task Analyze_IncludeTestsOption_IsPassedToGraphAnalyzer()
+    {
+        var store = new ScopeStubIndexStore();
+        var analyzer = new CapturingGraphAnalyzer();
+        var executor = CreateExecutor(store, analyzer);
+        var command = new ToolCommand("analyze", new Dictionary<string, string?>
+        {
+            ["filepath"] = "/repo1/src/App/Payments.cs",
+            ["includeTests"] = "false"
+        });
+
+        var result = await executor.ExecuteAsync(command, CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.NotNull(analyzer.LastRequest);
+        Assert.False(analyzer.LastRequest!.IncludeTests.GetValueOrDefault(true));
+    }
+
+    private static ToolCommandExecutor CreateExecutor(ScopeStubIndexStore store, IGraphAnalyzer? graphAnalyzer = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IIndexStore>(store);
         services.AddSingleton<IHybridMethodSearchService>(new ScopeStubHybridSearch(store));
-        services.AddSingleton<IGraphAnalyzer>(new NullGraphAnalyzer());
+        services.AddSingleton<IGraphAnalyzer>(graphAnalyzer ?? new NullGraphAnalyzer());
         services.AddSingleton<IDiagnosticCollector>(new NullDiagnosticCollector());
         services.AddSingleton<IMethodSourceExtractor>(new NullMethodSourceExtractor());
         services.AddSingleton<ISolutionLoader>(new NullSolutionLoader());
@@ -221,13 +305,17 @@ public sealed class ToolCommandExecutorSolutionScopeTests
     {
         private readonly IReadOnlyList<SearchFileMatch> _fileMatches;
         private readonly IReadOnlyList<SearchMethodMatch> _methodMatches;
+        private readonly IReadOnlyDictionary<string, IReadOnlyList<string>> _projectPathsBySolution;
 
         public ScopeStubIndexStore(
             IReadOnlyList<SearchFileMatch>? fileMatches = null,
-            IReadOnlyList<SearchMethodMatch>? methodMatches = null)
+            IReadOnlyList<SearchMethodMatch>? methodMatches = null,
+            IReadOnlyDictionary<string, IReadOnlyList<string>>? projectPathsBySolution = null)
         {
             _fileMatches = fileMatches ?? Array.Empty<SearchFileMatch>();
             _methodMatches = methodMatches ?? Array.Empty<SearchMethodMatch>();
+            _projectPathsBySolution = projectPathsBySolution ??
+                                      new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         }
 
         public Task<IReadOnlyList<SearchFileMatch>> SearchFilesAsync(
@@ -277,7 +365,13 @@ public sealed class ToolCommandExecutorSolutionScopeTests
         public Task<DateTime?> GetIndexedAtUtcAsync(string solutionPath, CancellationToken cancellationToken) => Task.FromResult<DateTime?>(null);
         public Task<SolutionInfo?> GetSolutionByIdAsync(string solutionId, CancellationToken cancellationToken) => Task.FromResult<SolutionInfo?>(null);
         public Task<IReadOnlyList<IndexedFileInfo>> ListFilesAsync(string solutionPath, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<IndexedFileInfo>>(Array.Empty<IndexedFileInfo>());
-        public Task<IReadOnlyList<string>> ListProjectPathsAsync(string solutionPath, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        public Task<IReadOnlyList<string>> ListProjectPathsAsync(string solutionPath, CancellationToken cancellationToken)
+        {
+            if (_projectPathsBySolution.TryGetValue(solutionPath, out var projectPaths))
+                return Task.FromResult(projectPaths);
+
+            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        }
         public Task<IReadOnlyList<SolutionInfo>> FindSolutionsByFilePathAsync(string filePath, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SolutionInfo>>(Array.Empty<SolutionInfo>());
         public Task<IReadOnlyList<SolutionFileMatch>> FindSolutionsByFilePathSuffixAsync(string relativeFilePath, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SolutionFileMatch>>(Array.Empty<SolutionFileMatch>());
         public Task<IReadOnlyList<SolutionProjectMatch>> FindProjectsByPathSuffixAsync(string relativeProjectPath, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SolutionProjectMatch>>(Array.Empty<SolutionProjectMatch>());
@@ -303,6 +397,37 @@ public sealed class ToolCommandExecutorSolutionScopeTests
     {
         public Task<AnalyzeResult> AnalyzeAsync(AnalyzeRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    private sealed class CapturingGraphAnalyzer : IGraphAnalyzer
+    {
+        public AnalyzeRequest? LastRequest { get; private set; }
+
+        public Task<AnalyzeResult> AnalyzeAsync(AnalyzeRequest request, CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            var graph = new Graph
+            {
+                Version = 1,
+                Targets = new List<string> { "target" },
+                Nodes = new List<Node>
+                {
+                    new()
+                    {
+                        Id = "target",
+                        Kind = "method",
+                        Display = "App.Payments.Run()",
+                        FilePath = request.FilePath,
+                        ContainingType = "App.Payments",
+                        Accessibility = "public",
+                        StartLine = 1
+                    }
+                },
+                Edges = new List<Edge>()
+            };
+
+            return Task.FromResult(new AnalyzeResult(graph, null));
+        }
     }
 
     private sealed class NullDiagnosticCollector : IDiagnosticCollector

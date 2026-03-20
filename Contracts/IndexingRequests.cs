@@ -17,4 +17,5 @@ public sealed record AnalyzeRequest(
     [property: JsonPropertyName("solutionPath")] string? SolutionPath = null,
     [property: JsonPropertyName("solutionId")] string? SolutionId = null,
     [property: JsonPropertyName("direction")] string? Direction = null,
-    [property: JsonPropertyName("visibility")] string? Visibility = null);
+    [property: JsonPropertyName("visibility")] string? Visibility = null,
+    [property: JsonPropertyName("includeTests")] bool? IncludeTests = null);

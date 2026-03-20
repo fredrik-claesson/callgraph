@@ -67,8 +67,8 @@ callgraph search-method --keywords "login authentication" --solutionId "solution
 - If no keywords/pattern is provided and a full inventory is requested, use `callgraph list-methods` instead.
 
 ## Scope rule
-- CallGraph index scope excludes test projects and the source files in those test projects.
-- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph search-method`.
+- CallGraph index scope includes test projects and their source files.
+- Use `--includeTests false` to exclude test-project results when needed.
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, pass `--folderPath <folder>` before searching project-wide.
 - Prefer adding scope before broadening keyword sets.

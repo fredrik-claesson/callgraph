@@ -38,8 +38,8 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 - Use `callgraph-list-methods` when no name/pattern filter is provided and the user wants all methods.
 
 ## Scope rule
-- CallGraph index scope excludes test projects and the source files in those test projects.
-- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph search-method`.
+- CallGraph index scope includes test projects and their source files.
+- Use `--includeTests false` to exclude test-project results when needed.
 - If the containing file is known, pass `--filePath <file.cs>` to keep results file-scoped.
 - If only a folder is known, pass `--folderPath <folder>` before searching wider scopes.
 - Prefer adding scope before broadening keyword sets.
@@ -53,7 +53,7 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 
 ## Action
 Run CLI:
-`callgraph search-method --pattern <pattern> [--keywords <keywords>] [--regex] [--solutionPath <path>] [--solutionId <id>] [--folderPath <folder>] [--filePath <file.cs>]`
+`callgraph search-method --pattern <pattern> [--keywords <keywords>] [--regex] [--includeTests <true|false>] [--solutionPath <path>] [--solutionId <id>] [--folderPath <folder>] [--filePath <file.cs>]`
 
 ## Output
 - Show ranked list of matches (type + display + file + line)

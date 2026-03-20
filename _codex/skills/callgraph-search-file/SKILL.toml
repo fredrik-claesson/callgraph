@@ -5,7 +5,7 @@ brand_color = "#10B981"
 
 default_prompt = """
 Search for C# files using CallGraph CLI command `callgraph search-file`. Prefer this over scanning the repo with rg/find because it is significantly faster on large solutions. If an exact file path is already known, skip search and use the file path directly.
-Index scope note: test projects and the source files in those test projects are excluded from CallGraph indexing/analysis; for explicit test-targeted discovery, use a narrow shell query instead of forcing CallGraph.
+Index scope note: test projects and their source files are included in CallGraph indexing/analysis by default. Use `--includeTests false` when you need to exclude test-project results.
 After file resolution, use `callgraph get-method-source` for exact live method extraction when implementation text is requested.
 Execution policy: run foreground command with `2>&1`, use daemon first, retry with `--no-daemon` only on timeout/error/inconsistent output.
 Run one narrow search-file query first; if needed, broaden pattern/scope incrementally in sequential retries. Do not run multiple search-file queries in parallel/background unless the user explicitly asks for parallel search.

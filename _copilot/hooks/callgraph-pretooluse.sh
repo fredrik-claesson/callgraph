@@ -24,12 +24,6 @@ if [[ -z "$CMD" ]]; then
   exit 0
 fi
 
-# Allow test-targeted shell exploration because tests are excluded from CallGraph index scope.
-if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
-   printf '%s' "$CMD" | grep -Eqi '((^|[/\\_.-])tests?([/\\_.-]|$)|\.tests?\.csproj\b|[._-]tests?\b|\b(xunit|nunit|mstest)\b)'; then
-  exit 0
-fi
-
 # Guard against common callgraph usage errors.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
   if printf '%s' "$CMD" | grep -Eqi '\banalyze-callgraph\b'; then
@@ -88,7 +82,7 @@ fi
 # Enforce CallGraph-first for C# shell exploration patterns.
 if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
    printf '%s' "$CMD" | grep -Eqi '(\.cs([^[:alnum:]_]|$)|-name[[:space:]]+"?\*?\.cs|/src|xargs[[:space:]]+grep)'; then
-  deny 'C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.'
+  deny 'C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source. Use --includeTests false when you need to exclude test-project results.'
 fi
 
 # Allow all other commands.

@@ -52,7 +52,7 @@ What `install` does:
 - Overwrites existing skill/agent/command files in those directories with the bundled versions.
 - Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
 - Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
-  - Test-targeted shell searches are left as shell fallback (not rewritten), because test projects are excluded from index scope.
+  - Use `--includeTests false` on search/list/analyze commands when you want to exclude test-project results.
 - For Copilot CLI, installs reusable skills/agent assets in `~/.copilot` and prints a manual step for enabling hooks from repository `.github/hooks/*.json`.
 - For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` (including a plugin-based pre-tool hook policy in `plugins/callgraph-hooks.js`).
 - Installs `callgraph` command shim:
@@ -92,19 +92,19 @@ callgraph --clear
 callgraph list-solutions   # auto-starts daemon on first call
 
 # Search files
-callgraph search-file --pattern "*Controller.cs" [--regex] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
+callgraph search-file --pattern "*Controller.cs" [--regex] [--includeTests true|false] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
 
 # Search methods
-callgraph search-method --keywords "login authentication" [--regex] [--pattern <pattern>] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
+callgraph search-method --keywords "login authentication" [--regex] [--pattern <pattern>] [--includeTests true|false] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
 
 # Rewrite a shell command when a safe CallGraph equivalent exists
 callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
 
 # List methods (visibility defaults to external)
-callgraph list-methods [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs] [--fileList /abs/files.txt]
+callgraph list-methods [--visibility external|internal] [--includeTests true|false] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs] [--fileList /abs/files.txt]
 
 # Analyze call graph for file/method
-callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>]
+callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--includeTests true|false] [--solutionPath /path/to/solution.sln] [--solutionId <id>]
 
 # Extract live method source from a known file
 callgraph get-method-source --filePath /abs/file.cs [--methodName MethodName] [--containingType Namespace.Type] [--signature "Task Foo(string x)"] [--startLine 123] [--mode signature_only|signature_plus_body|body_only|body_without_comments]
@@ -318,7 +318,7 @@ Override with configuration:
 ## Behavior Notes
 
 - Indexing is queued internally; CLI waits for completion unless `--watch` is active.
-- Test projects are excluded from indexing/analysis.
+- Test projects are included in indexing/analysis.
 - File watcher uses debounce for incremental reindexing.
 
 ## Testing
