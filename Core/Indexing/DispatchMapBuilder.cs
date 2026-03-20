@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -9,75 +10,44 @@ internal static class DispatchMapBuilder
         IReadOnlyList<Project> projects,
         CancellationToken cancellationToken)
     {
-        var interfaceImplementations = await BuildInterfaceImplementationMapAsync(projects, cancellationToken)
-            .ConfigureAwait(false);
-        var messageHandlers = await BuildMessageHandlerMapAsync(projects, cancellationToken)
-            .ConfigureAwait(false);
-
-        return new DispatchMaps(interfaceImplementations, messageHandlers);
-    }
-
-    private static async Task<Dictionary<string, List<INamedTypeSymbol>>> BuildInterfaceImplementationMapAsync(
-        IReadOnlyList<Project> projects,
-        CancellationToken cancellationToken)
-    {
-        var map = new Dictionary<string, List<INamedTypeSymbol>>(StringComparer.Ordinal);
+        var interfaceImplementations = new ConcurrentDictionary<string, ConcurrentBag<INamedTypeSymbol>>(StringComparer.Ordinal);
+        var messageHandlers = new ConcurrentDictionary<string, ConcurrentBag<IMethodSymbol>>(StringComparer.Ordinal);
+        var syntaxTreeParallelOptions = new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8)
+        };
 
         foreach (var project in projects)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
             if (compilation is null)
                 continue;
 
-            foreach (var syntaxTree in compilation.SyntaxTrees)
+            await Parallel.ForEachAsync(compilation.SyntaxTrees, syntaxTreeParallelOptions, async (syntaxTree, ct) =>
             {
                 var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
+                var root = await syntaxTree.GetRootAsync(ct).ConfigureAwait(false);
 
                 foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
                 {
-                    var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
+                    var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl, ct);
                     if (typeSymbol is not INamedTypeSymbol namedType || namedType.IsAbstract)
                         continue;
 
                     foreach (var @interface in namedType.AllInterfaces)
                     {
                         var interfaceKey = @interface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                        if (!map.TryGetValue(interfaceKey, out var implementations))
-                        {
-                            implementations = new List<INamedTypeSymbol>();
-                            map[interfaceKey] = implementations;
-                        }
-
+                        var implementations = interfaceImplementations.GetOrAdd(interfaceKey, _ => new ConcurrentBag<INamedTypeSymbol>());
                         implementations.Add(namedType);
                     }
                 }
-            }
-        }
-
-        return map;
-    }
-
-    private static async Task<Dictionary<string, List<IMethodSymbol>>> BuildMessageHandlerMapAsync(
-        IReadOnlyList<Project> projects,
-        CancellationToken cancellationToken)
-    {
-        var map = new Dictionary<string, List<IMethodSymbol>>(StringComparer.Ordinal);
-
-        foreach (var project in projects)
-        {
-            var compilation = await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
-            if (compilation is null)
-                continue;
-
-            foreach (var syntaxTree in compilation.SyntaxTrees)
-            {
-                var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                var root = await syntaxTree.GetRootAsync(cancellationToken).ConfigureAwait(false);
 
                 foreach (var methodDeclaration in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
-                    var method = semanticModel.GetDeclaredSymbol(methodDeclaration, cancellationToken) as IMethodSymbol;
+                    var method = semanticModel.GetDeclaredSymbol(methodDeclaration, ct) as IMethodSymbol;
                     if (!IsMessageHandlerCandidate(method))
                         continue;
 
@@ -87,19 +57,29 @@ internal static class DispatchMapBuilder
                             continue;
 
                         var key = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                        if (!map.TryGetValue(key, out var handlers))
-                        {
-                            handlers = new List<IMethodSymbol>();
-                            map[key] = handlers;
-                        }
-
+                        var handlers = messageHandlers.GetOrAdd(key, _ => new ConcurrentBag<IMethodSymbol>());
                         handlers.Add(method);
                     }
                 }
-            }
+            }).ConfigureAwait(false);
         }
 
-        return map;
+        var normalizedInterfaceImplementations = interfaceImplementations.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value
+                .GroupBy(symbol => symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToList(),
+            StringComparer.Ordinal);
+        var normalizedMessageHandlers = messageHandlers.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value
+                .GroupBy(symbol => symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToList(),
+            StringComparer.Ordinal);
+
+        return new DispatchMaps(normalizedInterfaceImplementations, normalizedMessageHandlers);
     }
 
     private static bool IsMessageHandlerCandidate(IMethodSymbol? method)
@@ -134,4 +114,5 @@ internal static class DispatchMapBuilder
 
         return true;
     }
+
 }
