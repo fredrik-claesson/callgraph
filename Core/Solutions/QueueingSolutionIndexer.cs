@@ -31,7 +31,15 @@ public sealed class QueueingSolutionIndexer : ISolutionIndexer
         var solutionId = SolutionIdentity.FromPath(solutionPath);
         var job = _jobStore.CreateJob(solutionId, "Queued");
         var request = new IndexJobRequest(job.JobId, solutionId, solutionPath, slnOnly, isReindex);
-        await _queue.EnqueueAsync(request, cancellationToken).ConfigureAwait(false);
-        return new IndexJobResponse(job.JobId, solutionId);
+        var enqueue = await _queue.EnqueueAsync(request, cancellationToken).ConfigureAwait(false);
+        if (enqueue.Accepted)
+            return new IndexJobResponse(job.JobId, solutionId);
+
+        _jobStore.UpdateJob(new IndexJobStatusResponse(
+            job.JobId,
+            solutionId,
+            "Superseded",
+            $"Merged into active job {enqueue.ActiveJobId}."));
+        return new IndexJobResponse(enqueue.ActiveJobId, solutionId);
     }
 }

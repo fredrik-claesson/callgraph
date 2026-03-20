@@ -112,6 +112,44 @@ public sealed class SolutionWatcherTests
     }
 
     [Fact]
+    public async Task StartAsync_WithNestedProjectDirectories_CompactsWatcherRoots()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-watch-roots-{Guid.NewGuid():N}");
+        var solutionPath = Path.Combine(tempDir, "Sample.sln");
+        var projectA = Path.Combine(tempDir, "src", "Domain", "Domain.csproj");
+        var projectB = Path.Combine(tempDir, "src", "Domain", "Billing", "Billing.csproj");
+        var projectC = Path.Combine(tempDir, "src", "Api", "Api.csproj");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(projectA)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(projectB)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(projectC)!);
+        await File.WriteAllTextAsync(solutionPath, string.Empty);
+        await File.WriteAllTextAsync(projectA, string.Empty);
+        await File.WriteAllTextAsync(projectB, string.Empty);
+        await File.WriteAllTextAsync(projectC, string.Empty);
+
+        var indexStore = new InMemoryIndexStore([projectA, projectB, projectC]);
+        var watcher = new SolutionWatcher(
+            solutionPath,
+            slnOnly: true,
+            new ThrowingSolutionLoader(),
+            indexStore,
+            new InMemorySolutionIndexer(),
+            NullLogger.Instance);
+
+        try
+        {
+            await watcher.StartAsync(CancellationToken.None);
+            Assert.Equal(1, GetWatcherCount(watcher));
+        }
+        finally
+        {
+            watcher.Dispose();
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void OnChanged_IgnoresObjAndBinPaths()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-watch-ignore-{Guid.NewGuid():N}");
@@ -192,6 +230,19 @@ public sealed class SolutionWatcherTests
         var countProperty = pendingUpdates!.GetType().GetProperty("Count");
         Assert.NotNull(countProperty);
         return (int)countProperty!.GetValue(pendingUpdates)!;
+    }
+
+    private static int GetWatcherCount(SolutionWatcher watcher)
+    {
+        var watchersField = typeof(SolutionWatcher).GetField("_watchers", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(watchersField);
+
+        var watchers = watchersField!.GetValue(watcher);
+        Assert.NotNull(watchers);
+
+        var countProperty = watchers!.GetType().GetProperty("Count");
+        Assert.NotNull(countProperty);
+        return (int)countProperty!.GetValue(watchers)!;
     }
 
     private sealed class InMemoryIndexStore : IIndexStore

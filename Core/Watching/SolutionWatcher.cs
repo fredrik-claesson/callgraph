@@ -60,6 +60,17 @@ public sealed class SolutionWatcher : IDisposable
             directories.Add(solutionDir);
 
         directories = directories.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var originalRootCount = directories.Count;
+        directories = CompactWatcherRoots(directories);
+
+        if (directories.Count != originalRootCount)
+        {
+            _logger.LogInformation(
+                "Compacted watcher roots for {SolutionPath}: {OriginalRootCount} -> {CompactedRootCount}.",
+                _solutionPath,
+                originalRootCount,
+                directories.Count);
+        }
 
         _logger.LogInformation(
             "Starting watcher for {SolutionPath} with {DirectoryCount} project directories.",
@@ -74,12 +85,8 @@ public sealed class SolutionWatcher : IDisposable
                 continue;
             }
 
-            AddWatcher(directory, "*.cs", includeSubdirectories: true);
-            AddWatcher(directory, "*.csproj", includeSubdirectories: true);
+            AddWatcher(directory, "*.*", includeSubdirectories: true);
         }
-
-        if (!string.IsNullOrWhiteSpace(solutionDir) && Directory.Exists(solutionDir))
-            AddWatcher(solutionDir, "*.sln", includeSubdirectories: false);
 
         _timer = new Timer(_ => _ = ProcessQueueAsync(), null, DebounceDelay, DebounceDelay);
         _logger.LogInformation(
@@ -243,6 +250,12 @@ public sealed class SolutionWatcher : IDisposable
     {
         Interlocked.Increment(ref _totalEventsReceived);
 
+        if (!IsRelevantFile(e.FullPath))
+        {
+            _logger.LogTrace("Ignoring non-relevant file change: {FilePath}", e.FullPath);
+            return;
+        }
+
         _logger.LogTrace(
             "Watcher event: Changed {ChangeType} | {FullPath}",
             e.ChangeType,
@@ -260,12 +273,6 @@ public sealed class SolutionWatcher : IDisposable
                 "Solution/project file changed: {FilePath}. Queueing full reindex.",
                 e.FullPath);
             RequestReindex();
-            return;
-        }
-
-        if (!IsCodeFile(e.FullPath))
-        {
-            _logger.LogTrace("Ignoring non-code file: {FilePath}", e.FullPath);
             return;
         }
 
@@ -295,6 +302,12 @@ public sealed class SolutionWatcher : IDisposable
     {
         Interlocked.Increment(ref _totalEventsReceived);
 
+        if (!IsRelevantFile(e.FullPath))
+        {
+            _logger.LogTrace("Ignoring non-relevant file deletion: {FilePath}", e.FullPath);
+            return;
+        }
+
         _logger.LogTrace(
             "Watcher event: Deleted | {FullPath}",
             e.FullPath);
@@ -311,12 +324,6 @@ public sealed class SolutionWatcher : IDisposable
                 "Solution/project file deleted: {FilePath}. Queueing full reindex.",
                 e.FullPath);
             RequestReindex();
-            return;
-        }
-
-        if (!IsCodeFile(e.FullPath))
-        {
-            _logger.LogTrace("Ignoring non-code file deletion: {FilePath}", e.FullPath);
             return;
         }
 
@@ -338,6 +345,18 @@ public sealed class SolutionWatcher : IDisposable
     private void OnRenamed(object sender, RenamedEventArgs e)
     {
         Interlocked.Increment(ref _totalEventsReceived);
+
+        var oldRelevant = IsRelevantFile(e.OldFullPath);
+        var newRelevant = IsRelevantFile(e.FullPath);
+
+        if (!oldRelevant && !newRelevant)
+        {
+            _logger.LogTrace(
+                "Ignoring non-relevant file rename: {OldPath} -> {NewPath}",
+                e.OldFullPath,
+                e.FullPath);
+            return;
+        }
 
         _logger.LogTrace(
             "Watcher event: Renamed | {OldFullPath} -> {FullPath}",
@@ -367,7 +386,7 @@ public sealed class SolutionWatcher : IDisposable
         }
 
         // Handle rename as delete old + create new
-        if (!oldPathIgnored && IsCodeFile(e.OldFullPath))
+        if (!oldPathIgnored && oldRelevant && IsCodeFile(e.OldFullPath))
         {
             _pendingUpdates.TryRemove(e.OldFullPath, out _);
             _pendingDeletes[e.OldFullPath] = DateTime.UtcNow;
@@ -379,7 +398,7 @@ public sealed class SolutionWatcher : IDisposable
                 _eventCounts[e.OldFullPath]);
         }
 
-        if (!newPathIgnored && IsCodeFile(e.FullPath))
+        if (!newPathIgnored && newRelevant && IsCodeFile(e.FullPath))
         {
             // Remove from deletes if it was previously marked for deletion
             if (_pendingDeletes.TryRemove(e.FullPath, out _))
@@ -768,5 +787,49 @@ public sealed class SolutionWatcher : IDisposable
     private static bool IsSolutionFile(string path)
         => path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
            path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRelevantFile(string path)
+        => IsCodeFile(path) || IsSolutionFile(path);
+
+    private static List<string> CompactWatcherRoots(IReadOnlyList<string> directories)
+    {
+        if (directories.Count <= 1)
+            return directories.Select(Path.GetFullPath).ToList();
+
+        var normalizedDirectories = directories
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Select(Path.TrimEndingDirectorySeparator)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path.Length)
+            .ToList();
+
+        var compacted = new List<string>(normalizedDirectories.Count);
+        foreach (var directory in normalizedDirectories)
+        {
+            if (compacted.Any(root => IsSameOrSubdirectory(directory, root)))
+                continue;
+
+            compacted.Add(directory);
+        }
+
+        return compacted;
+    }
+
+    private static bool IsSameOrSubdirectory(string path, string root)
+    {
+        if (string.Equals(path, root, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var rootLength = root.Length;
+        if (path.Length <= rootLength)
+            return false;
+
+        var separator = path[rootLength];
+        return separator == Path.DirectorySeparatorChar || separator == Path.AltDirectorySeparatorChar;
+    }
 
 }
