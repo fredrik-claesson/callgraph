@@ -22,6 +22,7 @@ public sealed class SolutionWatcher : IDisposable
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<string, DateTime> _pendingUpdates = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, DateTime> _pendingDeletes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _pendingMetadataReindexSignals = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, int> _eventCounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _processingLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
@@ -269,10 +270,7 @@ public sealed class SolutionWatcher : IDisposable
 
         if (IsSolutionFile(e.FullPath))
         {
-            _logger.LogInformation(
-                "Solution/project file changed: {FilePath}. Queueing full reindex.",
-                e.FullPath);
-            RequestReindex();
+            QueueMetadataReindex(e.FullPath, "changed");
             return;
         }
 
@@ -320,10 +318,7 @@ public sealed class SolutionWatcher : IDisposable
 
         if (IsSolutionFile(e.FullPath))
         {
-            _logger.LogInformation(
-                "Solution/project file deleted: {FilePath}. Queueing full reindex.",
-                e.FullPath);
-            RequestReindex();
+            QueueMetadataReindex(e.FullPath, "deleted");
             return;
         }
 
@@ -377,11 +372,8 @@ public sealed class SolutionWatcher : IDisposable
 
         if ((!oldPathIgnored && IsSolutionFile(e.OldFullPath)) || (!newPathIgnored && IsSolutionFile(e.FullPath)))
         {
-            _logger.LogInformation(
-                "Solution/project file renamed: {OldPath} -> {NewPath}. Queueing full reindex.",
-                e.OldFullPath,
-                e.FullPath);
-            RequestReindex();
+            QueueMetadataReindex(e.OldFullPath, "renamed-old");
+            QueueMetadataReindex(e.FullPath, "renamed-new");
             return;
         }
 
@@ -461,12 +453,37 @@ public sealed class SolutionWatcher : IDisposable
         RequestReindex();
     }
 
-    private void RequestReindex()
+    private bool RequestReindex()
     {
+        if (_reindexRequestedAtUtc.HasValue)
+            return false;
+
         _reindexRequestedAtUtc = DateTime.UtcNow;
 
         // Invalidate cached context when reindex is requested
         InvalidateCachedContext();
+        return true;
+    }
+
+    private void QueueMetadataReindex(string filePath, string changeKind)
+    {
+        var normalizedPath = Path.GetFullPath(filePath);
+        _pendingMetadataReindexSignals[normalizedPath] = changeKind;
+
+        if (RequestReindex())
+        {
+            _logger.LogInformation(
+                "Solution/project file {ChangeKind}: {FilePath}. Queueing full reindex.",
+                changeKind,
+                normalizedPath);
+        }
+        else
+        {
+            _logger.LogTrace(
+                "Additional solution/project file {ChangeKind} while reindex pending: {FilePath}.",
+                changeKind,
+                normalizedPath);
+        }
     }
 
     private void InvalidateCachedContext()
@@ -735,6 +752,8 @@ public sealed class SolutionWatcher : IDisposable
                 now - _reindexRequestedAtUtc.Value >= DebounceDelay)
             {
                 _reindexRequestedAtUtc = null;
+                var metadataSignals = _pendingMetadataReindexSignals.ToArray();
+                _pendingMetadataReindexSignals.Clear();
 
                 // Clear pending updates/deletes since full reindex will handle everything
                 var clearedUpdates = _pendingUpdates.Count;
@@ -745,10 +764,24 @@ public sealed class SolutionWatcher : IDisposable
 
                 _logger.LogInformation(
                     "Watcher-triggered reindex queued for {SolutionPath}. " +
-                    "Cleared {UpdateCount} pending updates and {DeleteCount} pending deletes.",
+                    "Metadata changes={MetadataSignalCount}. Cleared {UpdateCount} pending updates and {DeleteCount} pending deletes.",
                     _solutionPath,
+                    metadataSignals.Length,
                     clearedUpdates,
                     clearedDeletes);
+
+                if (metadataSignals.Length > 0)
+                {
+                    var metadataPreview = string.Join(
+                        ", ",
+                        metadataSignals
+                            .Take(5)
+                            .Select(signal => $"{signal.Key} ({signal.Value})"));
+                    _logger.LogDebug(
+                        "Metadata reindex signal preview for {SolutionPath}: {MetadataPreview}",
+                        _solutionPath,
+                        metadataPreview);
+                }
 
                 await _solutionIndexer
                     .EnqueueReindexAsync(new ReindexRequest(_solutionPath, _slnOnly), _cts.Token)
