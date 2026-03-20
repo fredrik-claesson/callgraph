@@ -1,5 +1,20 @@
+import { createHash } from "node:crypto"
+import { promises as fs } from "node:fs"
+import os from "node:os"
+import path from "node:path"
+
 export const CallGraphHooksPlugin = async () => {
   const isBashLike = (tool) => tool === "bash" || tool === "powershell"
+
+  const firstString = (...values) => {
+    for (const value of values) {
+      if (typeof value !== "string") continue
+      const trimmed = value.trim()
+      if (trimmed.length > 0) return trimmed
+    }
+
+    return ""
+  }
 
   const extractArg = (command, flag) => {
     const re = new RegExp(`${flag}(?:\\s+|=)(\"[^\"]+\"|'[^']+'|\\S+)`, "i")
@@ -17,12 +32,92 @@ export const CallGraphHooksPlugin = async () => {
     throw new Error(message)
   }
 
+  const extractCommand = (input, output) =>
+    firstString(
+      output?.args?.command,
+      output?.args?.cmd,
+      input?.args?.command,
+      input?.args?.cmd,
+      output?.command,
+      input?.command,
+    )
+
+  const extractSessionId = (input, output) =>
+    firstString(
+      input?.sessionId,
+      input?.session_id,
+      input?.sessionID,
+      input?.conversationId,
+      input?.conversation_id,
+      input?.threadId,
+      input?.thread_id,
+      output?.sessionId,
+      output?.session_id,
+      output?.threadId,
+      output?.thread_id,
+    )
+
+  const extractCwd = (input, output) =>
+    firstString(
+      output?.args?.cwd,
+      output?.args?.workdir,
+      output?.args?.workingDirectory,
+      output?.args?.working_directory,
+      input?.args?.cwd,
+      input?.args?.workdir,
+      input?.args?.workingDirectory,
+      input?.args?.working_directory,
+      input?.cwd,
+      input?.workdir,
+      input?.workingDirectory,
+      input?.working_directory,
+      output?.cwd,
+      output?.workdir,
+      output?.workingDirectory,
+      output?.working_directory,
+    )
+
+  const sessionKey = (sessionId, cwd) => {
+    if (sessionId) {
+      return sessionId.replace(/[^A-Za-z0-9._-]/g, "_")
+    }
+
+    if (cwd) {
+      return createHash("sha256").update(cwd).digest("hex").slice(0, 20)
+    }
+
+    return "global"
+  }
+
+  const markMainCallgraphUsage = async (input, output) => {
+    try {
+      const key = sessionKey(extractSessionId(input, output), extractCwd(input, output))
+      const stateDir = path.join(os.homedir(), ".config", "opencode", "plugins", ".state")
+      const filePath = path.join(stateDir, `callgraph-main-count-${key}.txt`)
+      await fs.mkdir(stateDir, { recursive: true })
+
+      let current = 0
+      try {
+        const raw = (await fs.readFile(filePath, "utf8")).trim()
+        const parsed = Number.parseInt(raw, 10)
+        if (Number.isFinite(parsed) && parsed >= 0) {
+          current = parsed
+        }
+      } catch {
+        // File may not exist yet.
+      }
+
+      await fs.writeFile(filePath, String(current + 1), "utf8")
+    } catch {
+      // State tracking should never block normal command flow.
+    }
+  }
+
   return {
     "tool.execute.before": async (input, output) => {
       if (!isBashLike(input.tool)) return
 
-      const args = output.args || {}
-      const command = typeof args.command === "string" ? args.command : ""
+      const command = extractCommand(input, output)
       if (!command.trim()) return
 
       const lower = command.toLowerCase()
@@ -62,7 +157,10 @@ export const CallGraphHooksPlugin = async () => {
         }
       }
 
-      if (/^\s*callgraph\b/i.test(command)) return
+      if (/^\s*callgraph\b/i.test(command)) {
+        await markMainCallgraphUsage(input, output)
+        return
+      }
 
       const csharpExploration = isSearchCommand && /(\.cs(\b|[^A-Za-z0-9_])|-name\s+[\"']?\*?\.cs|\/src|xargs\s+grep)/i.test(command)
       if (csharpExploration) {

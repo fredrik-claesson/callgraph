@@ -141,7 +141,7 @@ Notes:
 `search-method` uses a hybrid loop for non-regex queries:
 
 1. Lexical candidate fetch:
-   - Split query into lexical tokens.
+   - Use wildcard-aware tokenization (whole identifiers by default; casing split only when wildcards are present).
    - Expand a small synonym set (for example `login`/`signin`/`authentication`).
    - Query index with wildcard token patterns.
 2. Lexical scoring:

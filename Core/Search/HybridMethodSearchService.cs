@@ -345,13 +345,16 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
 
     private static MethodQuery BuildQuery(string pattern)
     {
+        var containsWildcard = pattern.IndexOfAny(['*', '?']) >= 0;
         var normalized = NormalizeQueryText(pattern);
         var literalTokens = SplitLiteralTerms(normalized)
             .Where(static token => token.Length > 0)
             .ToList();
-        var rawTokens = SplitTokens(normalized)
-            .Where(static token => token.Length > 0)
-            .ToList();
+        var rawTokens = containsWildcard
+            ? SplitTokens(normalized)
+                .Where(static token => token.Length > 0)
+                .ToList()
+            : literalTokens;
 
         var canonicalTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var token in rawTokens.Concat(literalTokens))
@@ -388,7 +391,7 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
             CanonicalTokens: canonicalTokens,
             SemanticText: semanticText,
             SpecificRawTokens: specificRawTokens,
-            ContainsWildcard: pattern.IndexOfAny(['*', '?']) >= 0);
+            ContainsWildcard: containsWildcard);
     }
 
     private static MethodDocument BuildDocument(SearchMethodMatch match)
@@ -507,6 +510,7 @@ public sealed class HybridMethodSearchService : IHybridMethodSearchService
 
     private static HashSet<string> SplitAndCanonicalize(string? text)
         => SplitTokens(text)
+            .Concat(SplitLiteralTerms(text))
             .Select(CanonicalizeToken)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

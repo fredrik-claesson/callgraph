@@ -6,13 +6,75 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 INPUT=$(cat)
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.toolName // empty')
-TOOL_ARGS_OBJ=$(printf '%s' "$INPUT" | jq -rc 'if (.toolArgs | type) == "string" then ((.toolArgs | fromjson?) // {}) elif (.toolArgs | type) == "object" then .toolArgs else {} end')
-CMD=$(printf '%s' "$TOOL_ARGS_OBJ" | jq -r '.command // empty')
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.toolName // .tool_name // empty' | tr '[:upper:]' '[:lower:]')
+TOOL_ARGS_OBJ=$(printf '%s' "$INPUT" | jq -rc '
+  if (.toolArgs | type) == "string" then ((.toolArgs | fromjson?) // {})
+  elif (.toolArgs | type) == "object" then .toolArgs
+  elif (.tool_args | type) == "string" then ((.tool_args | fromjson?) // {})
+  elif (.tool_args | type) == "object" then .tool_args
+  else {}
+  end')
+CMD=$(printf '%s' "$TOOL_ARGS_OBJ" | jq -r '.command // .cmd // empty')
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '
+  .sessionId //
+  .session_id //
+  .sessionID //
+  .conversationId //
+  .conversation_id //
+  .threadId //
+  .thread_id //
+  empty')
+CWD=$(printf '%s' "$TOOL_ARGS_OBJ" | jq -r '
+  .cwd //
+  .workdir //
+  .workingDirectory //
+  .working_directory //
+  empty')
+if [[ -z "$CWD" ]]; then
+  CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // .workdir // .workingDirectory // .working_directory // empty')
+fi
+STATE_DIR="${HOME}/.copilot/hooks/.state"
 
 deny() {
   jq -nc --arg reason "$1" '{"permissionDecision":"deny","permissionDecisionReason":$reason}'
   exit 0
+}
+
+session_key() {
+  if [[ -n "${SESSION_ID:-}" ]]; then
+    printf '%s' "$SESSION_ID" | tr -cs 'A-Za-z0-9._-' '_'
+    return
+  fi
+
+  if [[ -n "${CWD:-}" ]]; then
+    printf '%s' "$CWD" | shasum -a 256 | awk '{print substr($1,1,20)}'
+    return
+  fi
+
+  printf '%s' "global"
+}
+
+read_counter() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    local v
+    v=$(cat "$file" 2>/dev/null || printf '%s' "0")
+    if [[ "$v" =~ ^[0-9]+$ ]]; then
+      printf '%s' "$v"
+      return
+    fi
+  fi
+  printf '%s' "0"
+}
+
+mark_main_callgraph_usage() {
+  mkdir -p "$STATE_DIR"
+  local key
+  key=$(session_key)
+  local file="${STATE_DIR}/callgraph-main-count-${key}.txt"
+  local current
+  current=$(read_counter "$file")
+  printf '%s' "$((current + 1))" > "$file"
 }
 
 # Non-shell tools are out of scope for this policy.
@@ -82,6 +144,7 @@ fi
 
 # Allow direct callgraph commands.
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
+  mark_main_callgraph_usage
   exit 0
 fi
 

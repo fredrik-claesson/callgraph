@@ -4,7 +4,7 @@ Find C# methods by name using the CallGraph index (fast) via CLI.
 
 ## Search behavior
 - Non-regex search is hybrid:
-  - lexical token split over namespace/class/method/signature
+  - wildcard-aware lexical token handling (whole identifiers by default; casing split only when wildcards are present)
   - top-K semantic rerank with local `bge-small-en-v1.5`
 - `--regex` bypasses semantic rerank and runs regex-only search.
 - Missing model files automatically degrade to lexical-only ranking.

@@ -17,7 +17,7 @@ Use CLI command: `callgraph search-method`
 
 ## Search behavior
 - Non-regex search is hybrid:
-  - lexical token split over namespace/class/method/signature
+  - wildcard-aware lexical token handling (whole identifiers by default; casing split only when wildcards are present)
   - top-K semantic rerank with local `bge-small-en-v1.5` embeddings
 - `--regex` bypasses semantic rerank and uses regex-only search in SQLite.
 - If model files are missing, command falls back to lexical-only ranking automatically.

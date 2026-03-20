@@ -7,11 +7,74 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 INPUT=$(cat)
-CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+CMD=$(echo "$INPUT" | jq -r '
+  .tool_input.command //
+  .tool_input.cmd //
+  .toolInput.command //
+  .toolInput.cmd //
+  .command //
+  .cmd //
+  empty')
+SESSION_ID=$(echo "$INPUT" | jq -r '
+  .session_id //
+  .sessionId //
+  .sessionID //
+  .conversation_id //
+  .conversationId //
+  .thread_id //
+  .threadId //
+  empty')
+CWD=$(echo "$INPUT" | jq -r '
+  .cwd //
+  .working_directory //
+  .workingDirectory //
+  .tool_input.cwd //
+  .tool_input.workdir //
+  .toolInput.cwd //
+  .toolInput.workdir //
+  empty')
+STATE_DIR="${HOME}/.claude/hooks/.state"
 
 if [ -z "$CMD" ]; then
   exit 0
 fi
+
+session_key() {
+  if [[ -n "${SESSION_ID:-}" ]]; then
+    printf '%s' "$SESSION_ID" | tr -cs 'A-Za-z0-9._-' '_'
+    return
+  fi
+
+  if [[ -n "${CWD:-}" ]]; then
+    printf '%s' "$CWD" | shasum -a 256 | awk '{print substr($1,1,20)}'
+    return
+  fi
+
+  printf '%s' "global"
+}
+
+read_counter() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    local v
+    v=$(cat "$file" 2>/dev/null || printf '%s' "0")
+    if [[ "$v" =~ ^[0-9]+$ ]]; then
+      printf '%s' "$v"
+      return
+    fi
+  fi
+  printf '%s' "0"
+}
+
+mark_main_callgraph_usage() {
+  mkdir -p "$STATE_DIR"
+  local key
+  key=$(session_key)
+  local file="${STATE_DIR}/callgraph-main-count-${key}.txt"
+  local current
+  current=$(read_counter "$file")
+  printf '%s' "$((current + 1))" > "$file"
+}
 
 allow_command() {
   jq -n \
@@ -120,8 +183,9 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-metho
     BARE_QUERY=$(printf '%s' "$BARE_QUERY" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
     if [ -n "$BARE_QUERY" ]; then
       REWRITTEN_CMD=$(printf 'callgraph search-method --pattern "*%s*" 2>&1' "$BARE_QUERY")
-      ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '.tool_input')
+      ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '(.tool_input // .toolInput // {})')
       UPDATED_INPUT=$(echo "$ORIGINAL_INPUT" | jq --arg cmd "$REWRITTEN_CMD" '.command = $cmd')
+      mark_main_callgraph_usage
       jq -n \
         --argjson updated "$UPDATED_INPUT" \
         '{
@@ -160,6 +224,7 @@ fi
 
 # Allow callgraph commands (including output filtering like `callgraph ... | grep ...`).
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
+  mark_main_callgraph_usage
   exit 0
 fi
 
@@ -184,8 +249,9 @@ fi
 REWRITTEN=$(callgraph rewrite --command "$CMD" 2>/dev/null) || REWRITTEN=""
 
 if [ -n "$REWRITTEN" ] && [ "$CMD" != "$REWRITTEN" ]; then
-  ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '.tool_input')
+  ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '(.tool_input // .toolInput // {})')
   UPDATED_INPUT=$(echo "$ORIGINAL_INPUT" | jq --arg cmd "$REWRITTEN" '.command = $cmd')
+  mark_main_callgraph_usage
 
   jq -n \
     --argjson updated "$UPDATED_INPUT" \

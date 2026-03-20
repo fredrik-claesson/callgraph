@@ -7,7 +7,7 @@ description: Fast indexed search for C# methods via CallGraph CLI. Use when aske
 
 ## Search behavior
 - Non-regex search is hybrid:
-  - lexical token split over namespace/class/method/signature
+  - wildcard-aware lexical token handling (whole identifiers by default; casing split only when wildcards are present)
   - top-K semantic rerank with local `bge-small-en-v1.5`
 - `--regex` bypasses semantic rerank and runs regex-only search.
 - If model assets are missing, search falls back to lexical-only ranking.

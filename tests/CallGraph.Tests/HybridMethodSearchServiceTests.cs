@@ -188,7 +188,7 @@ public sealed class HybridMethodSearchServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_KeywordsUseWholeAndSplitTokensForCandidatePatterns()
+    public async Task SearchAsync_NonWildcardPattern_UsesWholeTokensForCandidatePatterns()
     {
         var methods = new[]
         {
@@ -222,10 +222,10 @@ public sealed class HybridMethodSearchServiceTests
 
         Assert.NotEmpty(result);
         Assert.Contains("*checkskipcleaning*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("*check*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("*reservation*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("*check*skip*cleaning*reservation*component*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("*checkskipcleaning*reservationcomponent*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("*check*skip*cleaning*reservation*component*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("*check*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain("*reservation*", store.NonRegexPatterns, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
