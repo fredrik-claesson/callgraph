@@ -5,7 +5,7 @@ brand_color = "#F59E0B"
 
 default_prompt = """
 Search for methods using CallGraph CLI command `callgraph search-method`. Prefer this over scanning source with rg because it is significantly faster and returns structured method locations. Narrow-first: when the containing file is known, include filePath; if only folder is known, include folderPath before searching project-wide. If a full method inventory is requested without a name pattern, use `callgraph list-methods` with visibility filtering.
-Index scope note: test projects and their source files are included in CallGraph indexing/analysis by default. Use `--includeTests false` when you need to exclude test-project results.
+Index scope note: test projects and the source files in those test projects are excluded from CallGraph indexing/analysis; for explicit test-targeted discovery, use a narrow shell query instead of forcing CallGraph.
 After choosing a result row, fetch exact implementation content with `callgraph get-method-source` using filePath + methodName + containingType + startLine; prefer `--mode body_only` for token efficiency.
 MUST run `callgraph search-method` as a foreground blocking command (never background terminals). If a background run starts accidentally, stop it and rerun in foreground.
 Always append `2>&1`. Use daemon mode first (`callgraph search-method ... 2>&1`) for speed, and retry with `--no-daemon` only on timeout/error/inconsistent output (`callgraph search-method ... --no-daemon 2>&1`).

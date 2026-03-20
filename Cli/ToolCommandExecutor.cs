@@ -7,7 +7,6 @@ using CallGraph.Core.Diagnostics;
 using CallGraph.Core.Extraction;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Output;
-using CallGraph.Core.Projects;
 using CallGraph.Core.Search;
 using CallGraph.Core.Solutions;
 using Microsoft.CodeAnalysis;
@@ -134,9 +133,6 @@ internal sealed class ToolCommandExecutor
                     return ToolExecutionResult.FromError(regexError);
                 if (regex && !TryValidateRegexPattern(pattern, out var regexValidationError))
                     return ToolExecutionResult.FromError(regexValidationError!);
-                var includeTests = CliInputHelpers.TryGetBool(tool.Options, "includeTests", defaultValue: true, out var includeTestsError);
-                if (includeTestsError is not null)
-                    return ToolExecutionResult.FromError(includeTestsError);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -150,7 +146,6 @@ internal sealed class ToolCommandExecutor
                 var matches = await _indexStore
                     .SearchFilesAsync(pattern, regex, solutionPath, solutionId, folderPath, filePath, cancellationToken)
                     .ConfigureAwait(false);
-                matches = await FilterSearchFileMatchesForTestsAsync(matches, includeTests, cancellationToken).ConfigureAwait(false);
 
                 if (solutionPath is null && solutionId is null)
                 {
@@ -184,9 +179,6 @@ internal sealed class ToolCommandExecutor
                     return ToolExecutionResult.FromError(regexError);
                 if (regex && !TryValidateRegexPattern(queryText, out var regexValidationError))
                     return ToolExecutionResult.FromError(regexValidationError!);
-                var includeTests = CliInputHelpers.TryGetBool(tool.Options, "includeTests", defaultValue: true, out var includeTestsError);
-                if (includeTestsError is not null)
-                    return ToolExecutionResult.FromError(includeTestsError);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -200,7 +192,6 @@ internal sealed class ToolCommandExecutor
                 var matches = await hybridMethodSearch
                     .SearchAsync(queryText, regex, solutionPath, solutionId, folderPath, filePath, cancellationToken)
                     .ConfigureAwait(false);
-                matches = await FilterSearchMethodMatchesForTestsAsync(matches, includeTests, cancellationToken).ConfigureAwait(false);
 
                 if (solutionPath is null && solutionId is null)
                 {
@@ -231,9 +222,6 @@ internal sealed class ToolCommandExecutor
                     return ToolExecutionResult.FromError(visibilityError);
                 if (visibility is null)
                     return ToolExecutionResult.FromError("visibility must be internal or external.");
-                var includeTests = CliInputHelpers.TryGetBool(tool.Options, "includeTests", defaultValue: true, out var includeTestsError);
-                if (includeTestsError is not null)
-                    return ToolExecutionResult.FromError(includeTestsError);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -258,8 +246,6 @@ internal sealed class ToolCommandExecutor
                         filePath,
                         fileList,
                         cancellationToken)
-                    .ConfigureAwait(false);
-                liveMatches = await FilterSearchMethodMatchesForTestsAsync(liveMatches, includeTests, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (solutionPath is null && solutionId is null)
@@ -297,9 +283,6 @@ internal sealed class ToolCommandExecutor
                 var visibility = NormalizeVisibility(CliInputHelpers.TryGetString(tool.Options, "visibility") ?? "external", out var visibilityError);
                 if (visibilityError is not null)
                     return ToolExecutionResult.FromError(visibilityError);
-                var includeTests = CliInputHelpers.TryGetBool(tool.Options, "includeTests", defaultValue: true, out var includeTestsError);
-                if (includeTestsError is not null)
-                    return ToolExecutionResult.FromError(includeTestsError);
 
                 var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
@@ -311,8 +294,7 @@ internal sealed class ToolCommandExecutor
                     SolutionPath: solutionPath,
                     SolutionId: solutionId,
                     Direction: direction,
-                    Visibility: visibility,
-                    IncludeTests: includeTests);
+                    Visibility: visibility);
 
                 var result = await graphAnalyzer.AnalyzeAsync(request, cancellationToken).ConfigureAwait(false);
                 if (result.Graph is null)
@@ -790,105 +772,6 @@ internal sealed class ToolCommandExecutor
             return "filePath must point to a .cs file.";
 
         return null;
-    }
-
-    private async Task<IReadOnlyList<SearchFileMatch>> FilterSearchFileMatchesForTestsAsync(
-        IReadOnlyList<SearchFileMatch> matches,
-        bool includeTests,
-        CancellationToken cancellationToken)
-    {
-        if (includeTests || matches.Count == 0)
-            return matches;
-
-        var testProjectDirectories = await LoadTestProjectDirectoriesBySolutionAsync(
-                matches.Select(match => match.SolutionPath),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        return matches
-            .Where(match => IsFileIncludedByTestPreference(
-                match.FilePath,
-                match.SolutionPath,
-                testProjectDirectories))
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<SearchMethodMatch>> FilterSearchMethodMatchesForTestsAsync(
-        IReadOnlyList<SearchMethodMatch> matches,
-        bool includeTests,
-        CancellationToken cancellationToken)
-    {
-        if (includeTests || matches.Count == 0)
-            return matches;
-
-        var testProjectDirectories = await LoadTestProjectDirectoriesBySolutionAsync(
-                matches.Select(match => match.SolutionPath),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        return matches
-            .Where(match => IsFileIncludedByTestPreference(
-                match.Method.FilePath,
-                match.SolutionPath,
-                testProjectDirectories))
-            .ToList();
-    }
-
-    private static bool IsFileIncludedByTestPreference(
-        string? filePath,
-        string solutionPath,
-        IReadOnlyDictionary<string, HashSet<string>> testProjectDirectoriesBySolution)
-    {
-        if (string.IsNullOrWhiteSpace(filePath))
-            return true;
-
-        if (testProjectDirectoriesBySolution.TryGetValue(solutionPath, out var testProjectDirectories) &&
-            testProjectDirectories.Count > 0 &&
-            TestProjectClassifier.IsFileUnderAnyProjectDirectory(filePath, testProjectDirectories))
-        {
-            return false;
-        }
-
-        return !TestProjectClassifier.LooksLikeTestPath(filePath);
-    }
-
-    private async Task<IReadOnlyDictionary<string, HashSet<string>>> LoadTestProjectDirectoriesBySolutionAsync(
-        IEnumerable<string> solutionPaths,
-        CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var solutionPath in solutionPaths
-                     .Where(path => !string.IsNullOrWhiteSpace(path))
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            IReadOnlyList<string> projectPaths;
-            try
-            {
-                projectPaths = await _indexStore.ListProjectPathsAsync(solutionPath, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch
-            {
-                result[solutionPath] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                continue;
-            }
-
-            var testProjectDirectories = projectPaths
-                .Where(projectPath => TestProjectClassifier.IsTestProject(
-                    Path.GetFileNameWithoutExtension(projectPath),
-                    projectPath))
-                .Select(Path.GetDirectoryName)
-                .Where(directory => !string.IsNullOrWhiteSpace(directory))
-                .Select(directory => Path.GetFullPath(directory!))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            result[solutionPath] = testProjectDirectories;
-        }
-
-        return result;
     }
 
     private static bool TryValidateRegexPattern(string pattern, out string? error)

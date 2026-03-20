@@ -28,6 +28,8 @@ export const CallGraphHooksPlugin = async () => {
       const lower = command.toLowerCase()
 
       const isSearchCommand = /\b(find|grep|rg|ls)\b/i.test(command)
+      const targetsTests = /((^|[\\/_.-])tests?([\\/_.-]|$)|\.tests?\.csproj\b|[._-]tests?\b|\b(xunit|nunit|mstest)\b)/i.test(command)
+      if (isSearchCommand && targetsTests) return
 
       if (/\bcallgraph\b/i.test(command) && /\banalyze\b/i.test(command)) {
         if (/\banalyze-callgraph\b/i.test(command)) {
@@ -64,7 +66,7 @@ export const CallGraphHooksPlugin = async () => {
 
       const csharpExploration = isSearchCommand && /(\.cs(\b|[^A-Za-z0-9_])|-name\s+[\"']?\*?\.cs|\/src|xargs\s+grep)/i.test(command)
       if (csharpExploration) {
-        deny("C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source. Use --includeTests false when you need to exclude test-project results.")
+        deny("C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.")
       }
 
       if (lower.includes("callgraph") && lower.includes("--filepath")) {

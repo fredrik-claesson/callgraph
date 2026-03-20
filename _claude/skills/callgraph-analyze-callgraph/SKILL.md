@@ -21,8 +21,8 @@ Parse the user request for:
 - --solutionPath / --solutionId (optional, for disambiguation)
 
 ## Scope rule
-- CallGraph index scope includes test projects and their source files.
-- Use `--includeTests false` to exclude test-project results when needed.
+- CallGraph index scope excludes test projects and the source files in those test projects.
+- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph analyze`.
 - If the target file is known, run `callgraph analyze` directly on that file.
 - Do not perform broader discovery/search first unless the user explicitly asks for it.
 - If user provides class + method but no file path, resolve file first with `search-file --pattern "*<ClassName>.cs"`.
@@ -42,7 +42,7 @@ Both modes traverse ALL edges including private/internal methods.
 
 ## Action
 Run CLI:
-`callgraph analyze --filepath <file.cs> [--method <name>] [--depth <n>] [--direction <value>] [--visibility <value>] [--includeTests <true|false>] [--solutionPath <path>] [--solutionId <id>]`
+`callgraph analyze --filepath <file.cs> [--method <name>] [--depth <n>] [--direction <value>] [--visibility <value>] [--solutionPath <path>] [--solutionId <id>]`
 
 ## Error handling
 - **AmbiguousSolution**: Rerun with solutionPath or solutionId

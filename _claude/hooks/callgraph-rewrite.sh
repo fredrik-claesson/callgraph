@@ -35,6 +35,12 @@ if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*ls\b' && printf '%s' "$CMD" | gr
   allow_command "Allowed: CallGraph install/path inspection"
 fi
 
+# Allow explicit test-targeted shell exploration because test projects are excluded from CallGraph index scope.
+if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
+   printf '%s' "$CMD" | grep -Eqi '((^|[/\\_.-])tests?([/\\_.-]|$)|\.tests?\.csproj\b|[._-]tests?\b|\b(xunit|nunit|mstest)\b)'; then
+  allow_command "Allowed: test-targeted search is not rewritten because tests are excluded from CallGraph index scope"
+fi
+
 # Guard against explosive internal callgraph traversals.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
   # Common typo guard: analyze-callgraph is not a valid command.
@@ -199,6 +205,6 @@ jq -n \
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
       "permissionDecision": "deny",
-      "permissionDecisionReason": "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source. Use --includeTests false when you want to exclude test projects."
+      "permissionDecisionReason": "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source. For explicit test-targeted queries, use a narrow shell fallback because test projects are excluded from the index."
     }
   }'

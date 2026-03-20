@@ -50,7 +50,7 @@ dotnet run --project CallGraph.csproj -- list-warnings --projectPath "/abs/path/
 
 ## Key Behavior
 
-- Test projects are included in indexing/analysis.
+- Test projects are excluded from indexing/analysis.
 - Visibility modes for analysis:
   - `external`: class-based depth
   - `internal`: method-based depth

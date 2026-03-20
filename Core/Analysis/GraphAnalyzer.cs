@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using CallGraph.Contracts;
 using CallGraph.Core.Indexing;
-using CallGraph.Core.Projects;
 using CallGraph.Core.Solutions;
 
 namespace CallGraph.Core.Analysis;
@@ -38,14 +37,6 @@ public sealed class GraphAnalyzer : IGraphAnalyzer
                 new AnalyzeError(AnalyzeErrorKind.IndexNotReady, "Index missing or in progress."));
         }
 
-        var includeTests = resolvedRequest.IncludeTests ?? true;
-        if (!includeTests)
-            index = ExcludeTestProjects(index);
-
-        var indexedNodeIds = index.Nodes
-            .Select(node => node.Id)
-            .ToHashSet(StringComparer.Ordinal);
-
         var targets = ResolveTargetsFromIndex(index, resolvedRequest.FilePath, resolvedRequest.Method);
         if (targets.Count == 0)
         {
@@ -53,9 +44,6 @@ public sealed class GraphAnalyzer : IGraphAnalyzer
                 .ResolveTargetsAsync(solutionPath, slnOnly, resolvedRequest.FilePath, resolvedRequest.Method, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        if (!includeTests && targets.Count > 0)
-            targets.RemoveWhere(target => !indexedNodeIds.Contains(target));
 
         if (targets.Count == 0)
         {
@@ -235,49 +223,6 @@ public sealed class GraphAnalyzer : IGraphAnalyzer
         }
 
         return new IndexSession(nodes, outbound, index.Edges.ToList(), new List<string>());
-    }
-
-    private static SolutionIndex ExcludeTestProjects(SolutionIndex index)
-    {
-        var testProjectPaths = index.ProjectPaths
-            .Where(projectPath => TestProjectClassifier.IsTestProject(
-                Path.GetFileNameWithoutExtension(projectPath),
-                projectPath))
-            .ToList();
-
-        var hasTestProjects = testProjectPaths.Count > 0;
-        var nodeIdsToExclude = index.Nodes
-            .Where(node =>
-                !string.IsNullOrWhiteSpace(node.FilePath) &&
-                (
-                    (hasTestProjects &&
-                     TestProjectClassifier.IsFileUnderAnyProjectDirectory(node.FilePath!, testProjectPaths)) ||
-                    TestProjectClassifier.LooksLikeTestPath(node.FilePath)
-                ))
-            .Select(node => node.Id)
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (nodeIdsToExclude.Count == 0)
-            return index;
-
-        return new SolutionIndex
-        {
-            SolutionId = index.SolutionId,
-            SolutionPath = index.SolutionPath,
-            IndexedAtUtc = index.IndexedAtUtc,
-            SlnOnly = index.SlnOnly,
-            Nodes = index.Nodes
-                .Where(node => !nodeIdsToExclude.Contains(node.Id))
-                .ToList(),
-            Edges = index.Edges
-                .Where(edge => !nodeIdsToExclude.Contains(edge.From) && !nodeIdsToExclude.Contains(edge.To))
-                .ToList(),
-            ProjectPaths = index.ProjectPaths
-                .Where(projectPath => !TestProjectClassifier.IsTestProject(
-                    Path.GetFileNameWithoutExtension(projectPath),
-                    projectPath))
-                .ToList()
-        };
     }
 
     private static string NormalizeVisibility(string? visibility)

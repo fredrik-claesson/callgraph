@@ -5,11 +5,12 @@ namespace CallGraph.Core.Solutions;
 
 public sealed class SolutionLoader : ISolutionLoader
 {
+    private readonly IProjectFilter _projectFilter;
     private readonly ISolutionFileParser _solutionFileParser;
 
     public SolutionLoader(IProjectFilter projectFilter, ISolutionFileParser solutionFileParser)
     {
-        _ = projectFilter;
+        _projectFilter = projectFilter;
         _solutionFileParser = solutionFileParser;
     }
 
@@ -34,7 +35,9 @@ public sealed class SolutionLoader : ISolutionLoader
                 .OpenSolutionAsync(normalizedSolutionPath, progress: null, cancellationToken)
                 .ConfigureAwait(false);
 
-            var projects = solution.Projects.ToList();
+            var projects = solution.Projects
+                .Where(p => !_projectFilter.IsTestProject(p))
+                .ToList();
 
             if (slnOnly)
             {
