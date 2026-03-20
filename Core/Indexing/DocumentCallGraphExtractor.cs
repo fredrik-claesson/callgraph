@@ -61,12 +61,10 @@ internal static class DocumentCallGraphExtractor
                                 AddInterfaceImplementationEdges(
                                     edges,
                                     edgeKeys,
-                                    nodes,
-                                    nodeKeys,
                                     methodKeyCache,
                                     callerKey,
                                     interfaceMethod!,
-                                    dispatchMaps.InterfaceImplementations);
+                                    dispatchMaps.InterfaceMethodImplementations);
                             }
 
                             if (looksLikePublisherCall && dispatchMaps is not null)
@@ -74,9 +72,6 @@ internal static class DocumentCallGraphExtractor
                                 AddPublishedMessageHandlerEdges(
                                     edges,
                                     edgeKeys,
-                                    nodes,
-                                    nodeKeys,
-                                    methodKeyCache,
                                     callerKey,
                                     invocation,
                                     callee,
@@ -359,41 +354,39 @@ internal static class DocumentCallGraphExtractor
     private static void AddInterfaceImplementationEdges(
         ICollection<Edge> edges,
         HashSet<EdgeKey> edgeKeys,
-        ICollection<Node> nodes,
-        ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IMethodSymbol interfaceMethod,
-        Dictionary<string, List<INamedTypeSymbol>> interfaceImplementations)
+        Dictionary<string, List<string>> interfaceMethodImplementations)
     {
-        var interfaceType = interfaceMethod.ContainingType;
-        if (interfaceType is null)
-            return;
-
-        var interfaceKey = interfaceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        if (!interfaceImplementations.TryGetValue(interfaceKey, out var implementations))
-            return;
-
-        foreach (var implementingType in implementations)
+        var interfaceMethodKey = GetOrAddMethodKey(interfaceMethod, methodKeyCache);
+        if (!interfaceMethodImplementations.TryGetValue(interfaceMethodKey, out var implementationMethodKeys))
         {
-            var implementationMethod = MethodSignatureMatcher.FindImplementationMethod(implementingType, interfaceMethod);
-            if (implementationMethod is null)
+            var originalDefinition = interfaceMethod.OriginalDefinition;
+            if (SymbolEqualityComparer.Default.Equals(originalDefinition, interfaceMethod))
+                return;
+
+            var originalMethodKey = GetOrAddMethodKey(originalDefinition, methodKeyCache);
+            if (!interfaceMethodImplementations.TryGetValue(originalMethodKey, out implementationMethodKeys))
+                return;
+        }
+
+        foreach (var implementationMethodKey in implementationMethodKeys)
+        {
+            if (string.Equals(implementationMethodKey, callerKey, StringComparison.Ordinal))
                 continue;
 
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, implementationMethod, "calls-via-interface");
+            AddEdge(edges, edgeKeys, callerKey, implementationMethodKey, "calls-via-interface");
         }
     }
 
     private static void AddPublishedMessageHandlerEdges(
         ICollection<Edge> edges,
         HashSet<EdgeKey> edgeKeys,
-        ICollection<Node> nodes,
-        ISet<string> nodeKeys,
-        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IInvocationOperation invocation,
         IMethodSymbol callee,
-        Dictionary<string, List<IMethodSymbol>> messageHandlers)
+        Dictionary<string, List<string>> messageHandlers)
     {
         if (!TryGetPublishedMessageType(invocation, callee, out var payloadType))
             return;
@@ -402,13 +395,12 @@ internal static class DocumentCallGraphExtractor
         if (!messageHandlers.TryGetValue(payloadKey, out var handlers))
             return;
 
-        foreach (var handler in handlers)
+        foreach (var handlerKey in handlers)
         {
-            var handlerKey = GetOrAddMethodKey(handler, methodKeyCache);
             if (string.Equals(handlerKey, callerKey, StringComparison.Ordinal))
                 continue;
 
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, handler, "calls-via-message");
+            AddEdge(edges, edgeKeys, callerKey, handlerKey, "calls-via-message");
         }
     }
 
