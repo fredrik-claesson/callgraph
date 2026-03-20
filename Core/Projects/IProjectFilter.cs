@@ -5,4 +5,6 @@ namespace CallGraph.Core.Projects;
 public interface IProjectFilter
 {
     bool IsTestProject(Project project);
+
+    bool IsTestProjectPath(string projectPath, string? projectName = null) => false;
 }

@@ -21,14 +21,18 @@ public sealed class SolutionLoader : ISolutionLoader
     {
         var normalizedSolutionPath = Path.GetFullPath(solutionPath);
 
-        // Configure MSBuild properties to enable analyzer loading
-        var properties = new Dictionary<string, string>
+        if (slnOnly)
         {
-            // Enable loading analyzer assemblies from NuGet packages
-            ["ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch"] = "true"
-        };
+            var slnProjectPaths = _solutionFileParser.ReadProjectPaths(normalizedSolutionPath)
+                .Select(Path.GetFullPath)
+                .Where(File.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (slnProjectPaths.Count > 0)
+                return await LoadSelectedProjectsAsync(slnProjectPaths, cancellationToken).ConfigureAwait(false);
+        }
 
-        var workspace = MSBuildWorkspace.Create(properties);
+        var workspace = MSBuildWorkspace.Create(CreateWorkspaceProperties());
         try
         {
             var solution = await workspace
@@ -63,14 +67,7 @@ public sealed class SolutionLoader : ISolutionLoader
     {
         var normalizedProjectPath = Path.GetFullPath(projectPath);
 
-        // Configure MSBuild properties to enable analyzer loading
-        var properties = new Dictionary<string, string>
-        {
-            // Enable loading analyzer assemblies from NuGet packages
-            ["ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch"] = "true"
-        };
-
-        var workspace = MSBuildWorkspace.Create(properties);
+        var workspace = MSBuildWorkspace.Create(CreateWorkspaceProperties());
         try
         {
             var project = await workspace
@@ -87,4 +84,45 @@ public sealed class SolutionLoader : ISolutionLoader
             throw;
         }
     }
+
+    private async Task<SolutionLoadContext> LoadSelectedProjectsAsync(
+        IReadOnlyList<string> projectPaths,
+        CancellationToken cancellationToken)
+    {
+        var workspace = MSBuildWorkspace.Create(CreateWorkspaceProperties());
+        try
+        {
+            var selectedProjectPaths = projectPaths
+                .Where(path => !_projectFilter.IsTestProjectPath(path, Path.GetFileNameWithoutExtension(path)))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (selectedProjectPaths.Count == 0)
+                return new SolutionLoadContext(workspace, []);
+
+            foreach (var projectPath in selectedProjectPaths)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await workspace.OpenProjectAsync(projectPath, progress: null, cancellationToken).ConfigureAwait(false);
+            }
+
+            var projects = workspace.CurrentSolution.Projects
+                .Where(p => p.FilePath is not null)
+                .Where(p => selectedProjectPaths.Contains(Path.GetFullPath(p.FilePath!)))
+                .Where(p => !_projectFilter.IsTestProject(p))
+                .ToList();
+
+            return new SolutionLoadContext(workspace, projects);
+        }
+        catch
+        {
+            workspace.Dispose();
+            throw;
+        }
+    }
+
+    private static Dictionary<string, string> CreateWorkspaceProperties()
+        => new()
+        {
+            // Enable loading analyzer assemblies from NuGet packages.
+            ["ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch"] = "true"
+        };
 }
