@@ -21,7 +21,7 @@ internal static class DocumentCallGraphExtractor
         var nodes = new List<Node>();
         var nodeKeys = new HashSet<string>(StringComparer.Ordinal);
         var edges = new List<Edge>();
-        var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
+        var edgeKeys = new HashSet<EdgeKey>(EdgeKeyComparer.Instance);
         DispatchMaps? dispatchMaps = null;
         var sameTypeMethodsCache = new Dictionary<INamedTypeSymbol, IReadOnlyList<IMethodSymbol>>(SymbolEqualityComparer.Default);
         var methodKeyCache = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
@@ -176,7 +176,7 @@ internal static class DocumentCallGraphExtractor
         IMethodSymbol caller,
         string callerKey,
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<INamedTypeSymbol, IReadOnlyList<IMethodSymbol>> sameTypeMethodsCache,
@@ -286,7 +286,7 @@ internal static class DocumentCallGraphExtractor
 
     private static void AddMethodEdge(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
@@ -301,13 +301,12 @@ internal static class DocumentCallGraphExtractor
 
     private static bool AddEdge(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         string from,
         string to,
         string kind)
     {
-        var key = $"{from}\u0000{to}\u0000{kind}";
-        if (!edgeKeys.Add(key))
+        if (!edgeKeys.Add(new EdgeKey(from, to, kind)))
             return false;
 
         edges.Add(new Edge
@@ -359,7 +358,7 @@ internal static class DocumentCallGraphExtractor
 
     private static void AddInterfaceImplementationEdges(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
@@ -387,7 +386,7 @@ internal static class DocumentCallGraphExtractor
 
     private static void AddPublishedMessageHandlerEdges(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
@@ -551,7 +550,7 @@ internal static class DocumentCallGraphExtractor
 
     private static void AddPropertyAccessorEdges(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
@@ -595,7 +594,7 @@ internal static class DocumentCallGraphExtractor
 
     private static void AddEventAccessorEdges(
         ICollection<Edge> edges,
-        HashSet<string> edgeKeys,
+        HashSet<EdgeKey> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
         IDictionary<IMethodSymbol, string> methodKeyCache,
@@ -620,5 +619,26 @@ internal static class DocumentCallGraphExtractor
         var handlerMethod = ExtractReferencedMethod(eventAssignment.HandlerValue);
         if (handlerMethod is not null)
             AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, handlerMethod, "calls-via-event-handler");
+    }
+
+    private readonly record struct EdgeKey(string From, string To, string Kind);
+
+    private sealed class EdgeKeyComparer : IEqualityComparer<EdgeKey>
+    {
+        public static EdgeKeyComparer Instance { get; } = new();
+
+        public bool Equals(EdgeKey x, EdgeKey y)
+            => string.Equals(x.From, y.From, StringComparison.Ordinal)
+               && string.Equals(x.To, y.To, StringComparison.Ordinal)
+               && string.Equals(x.Kind, y.Kind, StringComparison.Ordinal);
+
+        public int GetHashCode(EdgeKey obj)
+        {
+            var hash = new HashCode();
+            hash.Add(obj.From, StringComparer.Ordinal);
+            hash.Add(obj.To, StringComparer.Ordinal);
+            hash.Add(obj.Kind, StringComparer.Ordinal);
+            return hash.ToHashCode();
+        }
     }
 }
