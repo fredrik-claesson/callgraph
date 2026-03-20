@@ -158,6 +158,81 @@ public sealed class SqliteIndexStoreIncrementalUpdateTests
         }
     }
 
+    [Fact]
+    public async Task SaveAsync_SameSolutionIdAcrossDifferentInvocationDirectories_UpdatesExistingRow()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-sqlite-upsert-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        var repoRoot = Path.Combine(tempDir, "repo");
+        var srcDir = Path.Combine(repoRoot, "src");
+        Directory.CreateDirectory(srcDir);
+
+        var dbPath = Path.Combine(tempDir, "index.db");
+        var solutionPath = Path.Combine(srcDir, "Mews.sln");
+        File.WriteAllText(solutionPath, string.Empty);
+
+        var previousCwd = Environment.CurrentDirectory;
+
+        try
+        {
+            var store = CreateStore(dbPath);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+            var indexedAt = DateTime.UtcNow;
+
+            Environment.CurrentDirectory = repoRoot;
+            await store.SaveAsync(
+                new SolutionIndex
+                {
+                    SolutionId = solutionId,
+                    SolutionPath = solutionPath,
+                    IndexedAtUtc = indexedAt,
+                    SlnOnly = true,
+                    Nodes = [],
+                    Edges = [],
+                    ProjectPaths = []
+                },
+                CancellationToken.None);
+
+            Environment.CurrentDirectory = tempDir;
+            await store.SaveAsync(
+                new SolutionIndex
+                {
+                    SolutionId = solutionId,
+                    SolutionPath = solutionPath,
+                    IndexedAtUtc = indexedAt.AddMinutes(1),
+                    SlnOnly = true,
+                    Nodes = [],
+                    Edges = [],
+                    ProjectPaths = []
+                },
+                CancellationToken.None);
+
+            await using var conn = new SqliteConnection($"Data Source={dbPath}");
+            await conn.OpenAsync();
+
+            await using var countCmd = conn.CreateCommand();
+            countCmd.CommandText = "SELECT COUNT(*) FROM Solutions WHERE Id = $id";
+            countCmd.Parameters.AddWithValue("$id", solutionId);
+            var count = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+            await using var pathCmd = conn.CreateCommand();
+            pathCmd.CommandText = "SELECT Path FROM Solutions WHERE Id = $id";
+            pathCmd.Parameters.AddWithValue("$id", solutionId);
+            var storedPath = Assert.IsType<string>(await pathCmd.ExecuteScalarAsync());
+
+            Assert.Equal(1, count);
+            Assert.Equal(Path.GetRelativePath(Environment.CurrentDirectory, solutionPath), storedPath);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = previousCwd;
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     private static SqliteIndexStore CreateStore(string dbPath)
         => new(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
 

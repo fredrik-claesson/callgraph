@@ -854,8 +854,8 @@ public sealed class SqliteIndexStore : IIndexStore
         cmd.CommandText = """
             INSERT INTO Solutions (Id, Path, IndexedAtUtc, SlnOnly)
             VALUES ($id, $path, $indexedAt, $slnOnly)
-            ON CONFLICT(Path)
-            DO UPDATE SET Id = $id, IndexedAtUtc = $indexedAt, SlnOnly = $slnOnly;
+            ON CONFLICT(Id)
+            DO UPDATE SET Path = $path, IndexedAtUtc = $indexedAt, SlnOnly = $slnOnly;
             """;
         cmd.Parameters.AddWithValue("$id", solutionId);
         cmd.Parameters.AddWithValue("$path", solutionPath);
