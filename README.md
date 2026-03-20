@@ -62,6 +62,12 @@ What `install` does:
 - Updates Windows user `PATH` automatically (new shells).
 - On macOS/Linux, if `~/.local/bin` is not on `PATH`, it prints the exact export command.
 
+Hook tuning (optional):
+- Claude hook fallback threshold: `CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Copilot hook fallback threshold: `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
+
 See [QUICKSTART.md](QUICKSTART.md) for more details.
 
 ## CLI Usage

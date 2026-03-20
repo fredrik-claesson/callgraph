@@ -134,10 +134,10 @@ internal sealed class ToolCommandExecutor
                 if (regex && !TryValidateRegexPattern(pattern, out var regexValidationError))
                     return ToolExecutionResult.FromError(regexValidationError!);
 
-                var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
+                var solutionPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "solutionPath"));
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
-                var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
-                var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
+                var folderPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "folderPath"));
+                var filePath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "filePath"));
 
                 var validateError = ValidateFolderOrFilePathExclusive(folderPath, filePath);
                 if (validateError is not null)
@@ -180,10 +180,10 @@ internal sealed class ToolCommandExecutor
                 if (regex && !TryValidateRegexPattern(queryText, out var regexValidationError))
                     return ToolExecutionResult.FromError(regexValidationError!);
 
-                var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
+                var solutionPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "solutionPath"));
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
-                var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
-                var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
+                var folderPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "folderPath"));
+                var filePath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "filePath"));
 
                 var validateError = ValidateFolderOrFilePathExclusive(folderPath, filePath);
                 if (validateError is not null)
@@ -223,11 +223,11 @@ internal sealed class ToolCommandExecutor
                 if (visibility is null)
                     return ToolExecutionResult.FromError("visibility must be internal or external.");
 
-                var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
+                var solutionPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "solutionPath"));
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
-                var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
-                var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
-                var fileListPath = CliInputHelpers.TryGetString(tool.Options, "fileList");
+                var folderPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "folderPath"));
+                var filePath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "filePath"));
+                var fileListPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "fileList"));
 
                 var fileList = LoadFileList(fileListPath, out var fileListError);
                 if (fileListError is not null)
@@ -273,6 +273,7 @@ internal sealed class ToolCommandExecutor
             {
                 if (!TryGetRequired(tool.Options, "filepath", out var filepath, out var filepathError))
                     return ToolExecutionResult.FromError(filepathError!);
+                filepath = NormalizeRequiredPath(filepath);
 
                 var method = CliInputHelpers.TryGetString(tool.Options, "method");
                 var depth = CliInputHelpers.TryGetInt(tool.Options, "depth", out var depthError) ?? 1;
@@ -284,7 +285,7 @@ internal sealed class ToolCommandExecutor
                 if (visibilityError is not null)
                     return ToolExecutionResult.FromError(visibilityError);
 
-                var solutionPath = CliInputHelpers.TryGetString(tool.Options, "solutionPath");
+                var solutionPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "solutionPath"));
                 var solutionId = CliInputHelpers.TryGetString(tool.Options, "solutionId");
 
                 var request = new AnalyzeRequest(
@@ -307,6 +308,7 @@ internal sealed class ToolCommandExecutor
             {
                 if (!TryGetRequired(tool.Options, "filePath", out var filePath, out var filePathError))
                     return ToolExecutionResult.FromError(filePathError!);
+                filePath = NormalizeRequiredPath(filePath);
 
                 if (!Path.IsPathRooted(filePath))
                     return ToolExecutionResult.FromError("filePath must be an absolute path.");
@@ -315,7 +317,8 @@ internal sealed class ToolCommandExecutor
                     return ToolExecutionResult.FromError("filePath must point to a .cs file.");
 
                 var mode = CliInputHelpers.TryGetString(tool.Options, "mode");
-                var methodName = CliInputHelpers.TryGetString(tool.Options, "methodName");
+                var methodName = CliInputHelpers.TryGetString(tool.Options, "methodName") ??
+                                 CliInputHelpers.TryGetString(tool.Options, "method");
                 var containingType = CliInputHelpers.TryGetString(tool.Options, "containingType");
                 var signature = CliInputHelpers.TryGetString(tool.Options, "signature");
                 var startLine = CliInputHelpers.TryGetInt(tool.Options, "startLine", out var startLineError);
@@ -355,9 +358,10 @@ internal sealed class ToolCommandExecutor
             {
                 if (!TryGetRequired(tool.Options, "projectPath", out var projectPath, out var projectError))
                     return ToolExecutionResult.FromError(projectError!);
+                projectPath = NormalizeRequiredPath(projectPath);
 
-                var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
-                var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
+                var folderPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "folderPath"));
+                var filePath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "filePath"));
 
                 if (!projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
                     return ToolExecutionResult.FromError("projectPath must point to a .csproj file.");
@@ -405,9 +409,10 @@ internal sealed class ToolCommandExecutor
             {
                 if (!TryGetRequired(tool.Options, "projectPath", out var projectPath, out var projectError))
                     return ToolExecutionResult.FromError(projectError!);
+                projectPath = NormalizeRequiredPath(projectPath);
 
-                var folderPath = CliInputHelpers.TryGetString(tool.Options, "folderPath");
-                var filePath = CliInputHelpers.TryGetString(tool.Options, "filePath");
+                var folderPath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "folderPath"));
+                var filePath = NormalizeOptionalPath(CliInputHelpers.TryGetString(tool.Options, "filePath"));
 
                 if (!projectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
                     return ToolExecutionResult.FromError("projectPath must point to a .csproj file.");
@@ -680,6 +685,17 @@ internal sealed class ToolCommandExecutor
         error = "visibility must be internal or external.";
         return null;
     }
+
+    private static string? NormalizeOptionalPath(string? rawPath)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath))
+            return rawPath;
+
+        return Path.GetFullPath(rawPath);
+    }
+
+    private static string NormalizeRequiredPath(string rawPath)
+        => Path.GetFullPath(rawPath);
 
     private static string? ValidateFolderOrFilePathExclusive(string? folderPath, string? filePath)
     {

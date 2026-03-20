@@ -34,9 +34,14 @@ CWD=$(echo "$INPUT" | jq -r '
   .toolInput.workdir //
   empty')
 STATE_DIR="${HOME}/.claude/hooks/.state"
+CALLGRAPH_FALLBACK_AFTER_FAILURES="${CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES:-2}"
 
 if [ -z "$CMD" ]; then
   exit 0
+fi
+
+if ! [[ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" =~ ^[0-9]+$ ]]; then
+  CALLGRAPH_FALLBACK_AFTER_FAILURES=2
 fi
 
 session_key() {
@@ -66,6 +71,47 @@ read_counter() {
   printf '%s' "0"
 }
 
+write_counter() {
+  local file="$1"
+  local value="$2"
+  printf '%s' "$value" > "$file"
+}
+
+increment_counter() {
+  local file="$1"
+  local v
+  v=$(read_counter "$file")
+  v=$((v + 1))
+  write_counter "$file" "$v"
+  printf '%s' "$v"
+}
+
+callgraph_failure_counter_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-failure-count-${key}.txt"
+}
+
+record_callgraph_failure() {
+  mkdir -p "$STATE_DIR"
+  local file
+  file=$(callgraph_failure_counter_file)
+  increment_counter "$file" >/dev/null
+}
+
+reset_callgraph_failures() {
+  mkdir -p "$STATE_DIR"
+  local file
+  file=$(callgraph_failure_counter_file)
+  write_counter "$file" "0"
+}
+
+current_callgraph_failures() {
+  local file
+  file=$(callgraph_failure_counter_file)
+  read_counter "$file"
+}
+
 mark_main_callgraph_usage() {
   mkdir -p "$STATE_DIR"
   local key
@@ -89,6 +135,58 @@ allow_command() {
   exit 0
 }
 
+allow_command_with_updated_input() {
+  local reason="$1"
+  local updated_cmd="$2"
+  local mark_callgraph="${3:-0}"
+  local original_input
+  local updated_input
+
+  original_input=$(echo "$INPUT" | jq -c '(.tool_input // .toolInput // {})')
+  updated_input=$(echo "$original_input" | jq --arg cmd "$updated_cmd" '.command = $cmd')
+
+  if [[ "$mark_callgraph" == "1" ]]; then
+    mark_main_callgraph_usage
+  fi
+
+  reset_callgraph_failures
+  jq -n \
+    --arg reason "$reason" \
+    --argjson updated "$updated_input" \
+    '{
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow",
+        "permissionDecisionReason": $reason,
+        "updatedInput": $updated
+      }
+    }'
+  exit 0
+}
+
+deny_command() {
+  jq -n \
+    --arg reason "$1" \
+    '{
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": $reason
+      }
+    }'
+  exit 0
+}
+
+deny_with_callgraph_failure() {
+  record_callgraph_failure
+  deny_command "$1"
+}
+
+is_narrow_shell_fallback() {
+  printf '%s' "$1" | grep -Eqi '^[[:space:]]*(rg|grep|find)\b' && \
+    printf '%s' "$1" | grep -Eqi '(\|[[:space:]]*(head|tail)\b|--max-count\b|(^|[[:space:]])-m[[:space:]]+[0-9]+|sed[[:space:]]+-n)'
+}
+
 # Allow lightweight environment checks so agents can diagnose CallGraph availability.
 if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*(which|command[[:space:]]+-v|type[[:space:]]+-P)[[:space:]]+callgraph\b'; then
   allow_command "Allowed: CallGraph availability check"
@@ -104,32 +202,28 @@ if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
   allow_command "Allowed: test-targeted search is not rewritten because tests are excluded from CallGraph index scope"
 fi
 
+ORIGINAL_CMD="$CMD"
+
+# Auto-correct common command issues before validation.
+if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+analyze-callgraph\b'; then
+  CMD=$(printf '%s' "$CMD" | perl -pe 's/^\s*callgraph\s+analyze-callgraph\b/callgraph analyze/i')
+fi
+
+if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+analyze\b'; then
+  CMD=$(printf '%s' "$CMD" | perl -pe 's/--filePath\b/--filepath/ig')
+fi
+
+if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b'; then
+  if ! printf '%s' "$CMD" | grep -Eqi -- '--methodName([[:space:]]+|=)'; then
+    CMD=$(printf '%s' "$CMD" | perl -pe 's/--method\b/--methodName/ig')
+  fi
+fi
+
 # Guard against explosive internal callgraph traversals.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
-  # Common typo guard: analyze-callgraph is not a valid command.
-  if printf '%s' "$CMD" | grep -Eqi '\banalyze-callgraph\b'; then
-    jq -n \
-      '{
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "Unknown command analyze-callgraph. Use: callgraph analyze --filepath <absolute-file.cs> [--method <name>] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--depth <n>] 2>&1"
-        }
-      }'
-    exit 0
-  fi
-
   # analyze requires --filepath; provide corrective guidance early.
-  if ! printf '%s' "$CMD" | grep -Eq -- '--filepath([[:space:]]+|=)'; then
-    jq -n \
-      '{
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "callgraph analyze requires --filepath <absolute-file.cs>. Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction outbound --visibility external --depth 2 2>&1"
-        }
-      }'
-    exit 0
+  if ! printf '%s' "$CMD" | grep -Eqi -- '--file(path|Path)([[:space:]]+|=)'; then
+    deny_with_callgraph_failure "callgraph analyze requires --filepath <absolute-file.cs>. Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction outbound --visibility external --depth 2 2>&1"
   fi
 
   VISIBILITY=$(printf '%s' "$CMD" | sed -nE 's/.*--visibility[[:space:]]+([^[:space:]]+).*/\1/p' | head -n1)
@@ -146,15 +240,7 @@ if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -
   fi
 
   if printf '%s' "$VISIBILITY" | grep -Eqi '^internal$' && [ "$DEPTH" -gt 2 ]; then
-    jq -n \
-      '{
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "Blocked: callgraph analyze with --visibility internal supports max --depth 2. Use two-stage analysis: (1) map callers with inbound+external depth 2, (2) pick 1-3 candidates and run outbound+internal depth 2 per candidate."
-        }
-      }'
-    exit 0
+    deny_with_callgraph_failure "Blocked: callgraph analyze with --visibility internal supports max --depth 2. Use two-stage analysis: (1) map callers with inbound+external depth 2, (2) pick 1-3 candidates and run outbound+internal depth 2 per candidate."
   fi
 fi
 
@@ -162,15 +248,7 @@ fi
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph[[:space:]]+get-method-source\b'; then
   GET_METHOD_SOURCE_COUNT=$(printf '%s' "$CMD" | grep -Eo 'callgraph[[:space:]]+get-method-source' | wc -l | tr -d ' ')
   if [ "${GET_METHOD_SOURCE_COUNT:-0}" -gt 1 ] || printf '%s' "$CMD" | grep -Eq '&&|;'; then
-    jq -n \
-      '{
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "Blocked: chained callgraph get-method-source commands are not allowed. Run one get-method-source call per command, then summarize; for multi-file inventory use callgraph list-methods --folderPath/--fileList first."
-        }
-      }'
-    exit 0
+    deny_with_callgraph_failure "Blocked: chained callgraph get-method-source commands are not allowed. Run one get-method-source call per command, then summarize; for multi-file inventory use callgraph list-methods --folderPath/--fileList first."
   fi
 fi
 
@@ -183,48 +261,19 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-metho
     BARE_QUERY=$(printf '%s' "$BARE_QUERY" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
     if [ -n "$BARE_QUERY" ]; then
       REWRITTEN_CMD=$(printf 'callgraph search-method --pattern "*%s*" 2>&1' "$BARE_QUERY")
-      ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '(.tool_input // .toolInput // {})')
-      UPDATED_INPUT=$(echo "$ORIGINAL_INPUT" | jq --arg cmd "$REWRITTEN_CMD" '.command = $cmd')
-      mark_main_callgraph_usage
-      jq -n \
-        --argjson updated "$UPDATED_INPUT" \
-        '{
-          "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason": "CallGraph auto-rewrite: added --pattern for search-method",
-            "updatedInput": $updated
-          }
-        }'
-      exit 0
+      allow_command_with_updated_input "CallGraph auto-rewrite: added --pattern for search-method" "$REWRITTEN_CMD" "1"
     fi
-  fi
-fi
-
-# Guard against relative --filePath on file-scoped callgraph commands.
-if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+(list-methods|get-method-source|search-file|search-method)\b' && \
-   printf '%s' "$CMD" | grep -Eq -- '--filePath([[:space:]]+|=)'; then
-  FILE_PATH_ARG=$(printf '%s' "$CMD" | sed -nE 's/.*--filePath[[:space:]]+([^[:space:]]+).*/\1/p' | head -n1)
-  if [ -z "$FILE_PATH_ARG" ]; then
-    FILE_PATH_ARG=$(printf '%s' "$CMD" | sed -nE 's/.*--filePath=([^[:space:]]+).*/\1/p' | head -n1)
-  fi
-  FILE_PATH_ARG=$(printf '%s' "$FILE_PATH_ARG" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
-  if [ -n "$FILE_PATH_ARG" ] && ! printf '%s' "$FILE_PATH_ARG" | grep -Eq '^/'; then
-    jq -n \
-      '{
-        "hookSpecificOutput": {
-          "hookEventName": "PreToolUse",
-          "permissionDecision": "deny",
-          "permissionDecisionReason": "callgraph --filePath must be absolute. Use an absolute .cs path, or use --folderPath for scoped discovery first."
-        }
-      }'
-    exit 0
   fi
 fi
 
 # Allow callgraph commands (including output filtering like `callgraph ... | grep ...`).
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
+  if [ "$CMD" != "$ORIGINAL_CMD" ]; then
+    allow_command_with_updated_input "CallGraph auto-correction applied" "$CMD" "1"
+  fi
+
   mark_main_callgraph_usage
+  reset_callgraph_failures
   exit 0
 fi
 
@@ -249,28 +298,12 @@ fi
 REWRITTEN=$(callgraph rewrite --command "$CMD" 2>/dev/null) || REWRITTEN=""
 
 if [ -n "$REWRITTEN" ] && [ "$CMD" != "$REWRITTEN" ]; then
-  ORIGINAL_INPUT=$(echo "$INPUT" | jq -c '(.tool_input // .toolInput // {})')
-  UPDATED_INPUT=$(echo "$ORIGINAL_INPUT" | jq --arg cmd "$REWRITTEN" '.command = $cmd')
-  mark_main_callgraph_usage
-
-  jq -n \
-    --argjson updated "$UPDATED_INPUT" \
-    '{
-      "hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "allow",
-        "permissionDecisionReason": "CallGraph auto-rewrite",
-        "updatedInput": $updated
-      }
-    }'
-  exit 0
+  allow_command_with_updated_input "CallGraph auto-rewrite" "$REWRITTEN" "1"
 fi
 
-jq -n \
-  '{
-    "hookSpecificOutput": {
-      "hookEventName": "PreToolUse",
-      "permissionDecision": "deny",
-      "permissionDecisionReason": "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source. For explicit test-targeted queries, use a narrow shell fallback because test projects are excluded from the index."
-    }
-  }'
+FAILURES=$(current_callgraph_failures)
+if [ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" -gt 0 ] && [ "$FAILURES" -ge "$CALLGRAPH_FALLBACK_AFTER_FAILURES" ] && is_narrow_shell_fallback "$CMD"; then
+  allow_command "Allowed: narrow shell fallback after repeated CallGraph failures in this session"
+fi
+
+deny_with_callgraph_failure "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source. For explicit test-targeted queries, use a narrow shell fallback because test projects are excluded from the index."

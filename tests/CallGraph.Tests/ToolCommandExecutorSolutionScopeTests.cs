@@ -17,6 +17,54 @@ namespace CallGraph.Tests;
 public sealed class ToolCommandExecutorSolutionScopeTests
 {
     [Fact]
+    public void CliCommandLine_AnalyzeCallgraphAlias_NormalizesToAnalyze()
+    {
+        var parsed = CliCommandLine.TryParse(
+            ["analyze-callgraph", "--filepath", "/tmp/Foo.cs"],
+            out var options,
+            out var error);
+
+        Assert.True(parsed);
+        Assert.Null(error);
+        Assert.Equal("analyze", options.ToolCommand?.Name);
+    }
+
+    [Fact]
+    public async Task GetMethodSource_WithMethodAliasAndRelativePath_NormalizesInputs()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"cg-method-source-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "Demo.cs");
+        await File.WriteAllTextAsync(filePath, "public class Demo { public void Run() {} }");
+
+        var relativeFilePath = Path.GetRelativePath(Environment.CurrentDirectory, filePath);
+        Assert.False(Path.IsPathRooted(relativeFilePath));
+
+        var store = new ScopeStubIndexStore();
+        var extractor = new CapturingMethodSourceExtractor();
+        var executor = CreateExecutor(store, methodSourceExtractor: extractor);
+        var command = new ToolCommand("get-method-source", new Dictionary<string, string?>
+        {
+            ["filePath"] = relativeFilePath,
+            ["method"] = "Run"
+        });
+
+        try
+        {
+            var result = await executor.ExecuteAsync(command, CancellationToken.None);
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.NotNull(extractor.LastRequest);
+            Assert.Equal("Run", extractor.LastRequest!.MethodName);
+            Assert.Equal(Path.GetFullPath(filePath), extractor.LastRequest.FilePath);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SearchFile_WithoutSolutionScope_ErrorsWhenResultsSpanMultipleSolutions()
     {
         var store = new ScopeStubIndexStore(
@@ -184,14 +232,16 @@ public sealed class ToolCommandExecutorSolutionScopeTests
         }
     }
 
-    private static ToolCommandExecutor CreateExecutor(ScopeStubIndexStore store)
+    private static ToolCommandExecutor CreateExecutor(
+        ScopeStubIndexStore store,
+        IMethodSourceExtractor? methodSourceExtractor = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IIndexStore>(store);
         services.AddSingleton<IHybridMethodSearchService>(new ScopeStubHybridSearch(store));
         services.AddSingleton<IGraphAnalyzer>(new NullGraphAnalyzer());
         services.AddSingleton<IDiagnosticCollector>(new NullDiagnosticCollector());
-        services.AddSingleton<IMethodSourceExtractor>(new NullMethodSourceExtractor());
+        services.AddSingleton<IMethodSourceExtractor>(methodSourceExtractor ?? new NullMethodSourceExtractor());
         services.AddSingleton<ISolutionLoader>(new NullSolutionLoader());
         services.AddSingleton<ISolutionContextCache>(new NullSolutionContextCache());
         var provider = services.BuildServiceProvider();
@@ -321,6 +371,31 @@ public sealed class ToolCommandExecutorSolutionScopeTests
         public Task<MethodSourceExtractionResult> ExtractAsync(
             MethodSourceExtractionRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();
+    }
+
+    private sealed class CapturingMethodSourceExtractor : IMethodSourceExtractor
+    {
+        public MethodSourceExtractionRequest? LastRequest { get; private set; }
+
+        public Task<MethodSourceExtractionResult> ExtractAsync(
+            MethodSourceExtractionRequest request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(
+                MethodSourceExtractionResult.Ok(
+                    new MethodSourceMatch(
+                        request.FilePath,
+                        request.MethodName ?? "Run",
+                        request.ContainingType,
+                        request.Signature ?? "void Run()",
+                        request.StartLine ?? 1,
+                        request.StartLine ?? 1,
+                        0,
+                        10,
+                        request.Mode,
+                        "public void Run() {}")));
+        }
     }
 
     private sealed class NullSolutionLoader : ISolutionLoader

@@ -34,6 +34,11 @@ if [[ -z "$CWD" ]]; then
   CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // .workdir // .workingDirectory // .working_directory // empty')
 fi
 STATE_DIR="${HOME}/.copilot/hooks/.state"
+CALLGRAPH_FALLBACK_AFTER_FAILURES="${COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES:-2}"
+
+if ! [[ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" =~ ^[0-9]+$ ]]; then
+  CALLGRAPH_FALLBACK_AFTER_FAILURES=2
+fi
 
 deny() {
   jq -nc --arg reason "$1" '{"permissionDecision":"deny","permissionDecisionReason":$reason}'
@@ -67,6 +72,47 @@ read_counter() {
   printf '%s' "0"
 }
 
+write_counter() {
+  local file="$1"
+  local value="$2"
+  printf '%s' "$value" > "$file"
+}
+
+increment_counter() {
+  local file="$1"
+  local v
+  v=$(read_counter "$file")
+  v=$((v + 1))
+  write_counter "$file" "$v"
+  printf '%s' "$v"
+}
+
+callgraph_failure_counter_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-failure-count-${key}.txt"
+}
+
+record_callgraph_failure() {
+  mkdir -p "$STATE_DIR"
+  local file
+  file=$(callgraph_failure_counter_file)
+  increment_counter "$file" >/dev/null
+}
+
+reset_callgraph_failures() {
+  mkdir -p "$STATE_DIR"
+  local file
+  file=$(callgraph_failure_counter_file)
+  write_counter "$file" "0"
+}
+
+current_callgraph_failures() {
+  local file
+  file=$(callgraph_failure_counter_file)
+  read_counter "$file"
+}
+
 mark_main_callgraph_usage() {
   mkdir -p "$STATE_DIR"
   local key
@@ -75,6 +121,16 @@ mark_main_callgraph_usage() {
   local current
   current=$(read_counter "$file")
   printf '%s' "$((current + 1))" > "$file"
+}
+
+deny_with_callgraph_failure() {
+  record_callgraph_failure
+  deny "$1"
+}
+
+is_narrow_shell_fallback() {
+  printf '%s' "$1" | grep -Eqi '^[[:space:]]*(rg|grep|find)\b' && \
+    printf '%s' "$1" | grep -Eqi '(\|[[:space:]]*(head|tail)\b|--max-count\b|(^|[[:space:]])-m[[:space:]]+[0-9]+|sed[[:space:]]+-n)'
 }
 
 # Non-shell tools are out of scope for this policy.
@@ -94,12 +150,8 @@ fi
 
 # Guard against common callgraph usage errors.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
-  if printf '%s' "$CMD" | grep -Eqi '\banalyze-callgraph\b'; then
-    deny 'Unknown command analyze-callgraph. Use: callgraph analyze --filepath <absolute-file.cs> [--method <name>] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--depth <n>] 2>&1'
-  fi
-
-  if ! printf '%s' "$CMD" | grep -Eq -- '--filepath([[:space:]]+|=)'; then
-    deny 'callgraph analyze requires --filepath <absolute-file.cs>. Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction outbound --visibility external --depth 2 2>&1'
+  if ! printf '%s' "$CMD" | grep -Eqi -- '--file(path|Path)([[:space:]]+|=)'; then
+    deny_with_callgraph_failure 'callgraph analyze requires --filepath <absolute-file.cs>. Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction outbound --visibility external --depth 2 2>&1'
   fi
 
   VISIBILITY=$(printf '%s' "$CMD" | sed -nE 's/.*--visibility[[:space:]]+([^[:space:]]+).*/\1/p' | head -n1)
@@ -116,7 +168,7 @@ if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -
   fi
 
   if printf '%s' "$VISIBILITY" | grep -Eqi '^internal$' && [[ "$DEPTH" -gt 2 ]]; then
-    deny 'callgraph analyze with --visibility internal supports max --depth 2. Use two-stage analysis: inbound+external depth 2 first, then outbound+internal depth 2 on 1-3 selected methods.'
+    deny_with_callgraph_failure 'callgraph analyze with --visibility internal supports max --depth 2. Use two-stage analysis: inbound+external depth 2 first, then outbound+internal depth 2 on 1-3 selected methods.'
   fi
 fi
 
@@ -124,34 +176,26 @@ fi
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph[[:space:]]+get-method-source\b'; then
   GET_METHOD_SOURCE_COUNT=$(printf '%s' "$CMD" | grep -Eo 'callgraph[[:space:]]+get-method-source' | wc -l | tr -d ' ')
   if [[ "${GET_METHOD_SOURCE_COUNT:-0}" -gt 1 ]] || printf '%s' "$CMD" | grep -Eq '&&|;'; then
-    deny 'Chained callgraph get-method-source commands are not allowed. Run one get-method-source command per tool call, then summarize.'
-  fi
-fi
-
-# Guard against relative --filePath for file-scoped commands.
-if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+(list-methods|get-method-source|search-file|search-method)\b' && \
-   printf '%s' "$CMD" | grep -Eq -- '--filePath([[:space:]]+|=)'; then
-  FILE_PATH_ARG=$(printf '%s' "$CMD" | sed -nE 's/.*--filePath[[:space:]]+([^[:space:]]+).*/\1/p' | head -n1)
-  if [[ -z "$FILE_PATH_ARG" ]]; then
-    FILE_PATH_ARG=$(printf '%s' "$CMD" | sed -nE 's/.*--filePath=([^[:space:]]+).*/\1/p' | head -n1)
-  fi
-
-  FILE_PATH_ARG=$(printf '%s' "$FILE_PATH_ARG" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
-  if [[ -n "$FILE_PATH_ARG" ]] && ! printf '%s' "$FILE_PATH_ARG" | grep -Eq '^/'; then
-    deny 'callgraph --filePath must be absolute. Use an absolute .cs path, or use --folderPath for scoped discovery first.'
+    deny_with_callgraph_failure 'Chained callgraph get-method-source commands are not allowed. Run one get-method-source command per tool call, then summarize.'
   fi
 fi
 
 # Allow direct callgraph commands.
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
   mark_main_callgraph_usage
+  reset_callgraph_failures
   exit 0
 fi
 
 # Enforce CallGraph-first for C# shell exploration patterns.
 if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
    printf '%s' "$CMD" | grep -Eqi '(\.cs([^[:alnum:]_]|$)|-name[[:space:]]+"?\*?\.cs|/src|xargs[[:space:]]+grep)'; then
-  deny 'C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.'
+  FAILURES=$(current_callgraph_failures)
+  if [[ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" -gt 0 ]] && [[ "$FAILURES" -ge "$CALLGRAPH_FALLBACK_AFTER_FAILURES" ]] && is_narrow_shell_fallback "$CMD"; then
+    exit 0
+  fi
+
+  deny_with_callgraph_failure 'C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.'
 fi
 
 # Allow all other commands.

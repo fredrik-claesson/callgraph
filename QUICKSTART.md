@@ -43,6 +43,12 @@ Installer behavior:
 - Updates Windows user `PATH` automatically (new terminals).
 - On macOS/Linux, prints a `PATH` export line if `~/.local/bin` is not currently on `PATH`.
 
+Hook tuning (optional):
+- Claude hook fallback threshold: `CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Copilot hook fallback threshold: `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
+
 Verify:
 
 ```bash

@@ -67,7 +67,7 @@ internal static class CliCommandLine
     {
         if (args.Length > 0 && !IsOption(args[0]))
         {
-            var commandName = args[0];
+            var commandName = NormalizeToolCommandName(args[0]);
             if (!TryParseToolOptions(args, 1, out var commandOptions, out error))
             {
                 options = new CliOptions(null, false, null, false, null, false, null);
@@ -209,6 +209,14 @@ internal static class CliCommandLine
 
     private static bool IsOption(string value)
         => value.StartsWith("--", StringComparison.Ordinal);
+
+    private static string NormalizeToolCommandName(string commandName)
+    {
+        if (string.Equals(commandName, "analyze-callgraph", StringComparison.OrdinalIgnoreCase))
+            return "analyze";
+
+        return commandName;
+    }
 }
 
 internal sealed record CliOptions(
