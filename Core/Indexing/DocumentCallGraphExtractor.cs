@@ -24,6 +24,7 @@ internal static class DocumentCallGraphExtractor
         var edgeKeys = new HashSet<string>(StringComparer.Ordinal);
         DispatchMaps? dispatchMaps = null;
         var sameTypeMethodsCache = new Dictionary<INamedTypeSymbol, IReadOnlyList<IMethodSymbol>>(SymbolEqualityComparer.Default);
+        var methodKeyCache = new Dictionary<IMethodSymbol, string>(SymbolEqualityComparer.Default);
 
         foreach (var declaration in EnumerateCallableDeclarations(root))
         {
@@ -33,8 +34,8 @@ internal static class DocumentCallGraphExtractor
             if (caller is null)
                 continue;
 
-            var callerKey = SymbolKeyFormatter.Format(caller);
-            AddNode(nodes, nodeKeys, IndexedCallableNodeFactory.Create(caller, declaration.GetLocation()));
+            var callerKey = GetOrAddMethodKey(caller, methodKeyCache);
+            AddDeclaredNode(nodes, nodeKeys, callerKey, caller, declaration.GetLocation());
 
             var rootOperation = GetBodyOperation(model, declaration, cancellationToken);
             var invocationOperationCount = 0;
@@ -48,7 +49,7 @@ internal static class DocumentCallGraphExtractor
                         {
                             invocationOperationCount++;
                             var callee = invocation.TargetMethod;
-                            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, callee, "calls-direct");
+                            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, callee, "calls-direct");
 
                             var isInterfaceCall = IsInterfaceCall(invocation, out var interfaceMethod);
                             var looksLikePublisherCall = LooksLikePublisherCall(callee);
@@ -62,6 +63,7 @@ internal static class DocumentCallGraphExtractor
                                     edgeKeys,
                                     nodes,
                                     nodeKeys,
+                                    methodKeyCache,
                                     callerKey,
                                     interfaceMethod!,
                                     dispatchMaps.InterfaceImplementations);
@@ -74,6 +76,7 @@ internal static class DocumentCallGraphExtractor
                                     edgeKeys,
                                     nodes,
                                     nodeKeys,
+                                    methodKeyCache,
                                     callerKey,
                                     invocation,
                                     callee,
@@ -82,20 +85,20 @@ internal static class DocumentCallGraphExtractor
                             break;
                         }
                         case IObjectCreationOperation objectCreation when objectCreation.Constructor is not null:
-                            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, objectCreation.Constructor, "calls-direct");
+                            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, objectCreation.Constructor, "calls-direct");
                             break;
                         case IDelegateCreationOperation delegateCreation:
                         {
                             var targetMethod = ExtractReferencedMethod(delegateCreation.Target);
                             if (targetMethod is not null)
-                                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, targetMethod, "calls-via-delegate");
+                                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, targetMethod, "calls-via-delegate");
                             break;
                         }
                         case IPropertyReferenceOperation propertyReference:
-                            AddPropertyAccessorEdges(edges, edgeKeys, nodes, nodeKeys, callerKey, propertyReference);
+                            AddPropertyAccessorEdges(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, propertyReference);
                             break;
                         case IEventAssignmentOperation eventAssignment:
-                            AddEventAccessorEdges(edges, edgeKeys, nodes, nodeKeys, callerKey, eventAssignment);
+                            AddEventAccessorEdges(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, eventAssignment);
                             break;
                     }
                 }
@@ -103,7 +106,8 @@ internal static class DocumentCallGraphExtractor
 
             // Fallback: recover direct invocation edges from syntax when Roslyn IOperation misses parts of a method body.
             // This protects private-method inbound indexing against false "unused" positives.
-            if (rootOperation is null || HasPotentialMissingInvocationOperations(declaration, invocationOperationCount))
+            if (rootOperation is null ||
+                (invocationOperationCount == 0 && ContainsPotentialSameTypeInvocation(declaration)))
             {
                 AddSyntaxInvocationEdges(
                     declaration,
@@ -113,7 +117,8 @@ internal static class DocumentCallGraphExtractor
                     edgeKeys,
                     nodes,
                     nodeKeys,
-                    sameTypeMethodsCache);
+                    sameTypeMethodsCache,
+                    methodKeyCache);
             }
         }
 
@@ -174,7 +179,8 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
-        IDictionary<INamedTypeSymbol, IReadOnlyList<IMethodSymbol>> sameTypeMethodsCache)
+        IDictionary<INamedTypeSymbol, IReadOnlyList<IMethodSymbol>> sameTypeMethodsCache,
+        IDictionary<IMethodSymbol, string> methodKeyCache)
     {
         var bodySyntax = GetBodySyntax(declaration);
         if (bodySyntax is null)
@@ -191,7 +197,7 @@ internal static class DocumentCallGraphExtractor
             if (callee is null)
                 continue;
 
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, callee, "calls-direct");
+            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, callee, "calls-direct");
         }
     }
 
@@ -283,13 +289,14 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IMethodSymbol callee,
         string kind)
     {
-        var calleeKey = SymbolKeyFormatter.Format(callee);
+        var calleeKey = GetOrAddMethodKey(callee, methodKeyCache);
         if (AddEdge(edges, edgeKeys, callerKey, calleeKey, kind))
-            TryAddSourceNode(nodes, nodeKeys, callee);
+            TryAddSourceNode(nodes, nodeKeys, methodKeyCache, callee);
     }
 
     private static bool AddEdge(
@@ -313,13 +320,21 @@ internal static class DocumentCallGraphExtractor
         return true;
     }
 
-    private static void TryAddSourceNode(ICollection<Node> nodes, ISet<string> nodeKeys, IMethodSymbol method)
+    private static void TryAddSourceNode(
+        ICollection<Node> nodes,
+        ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
+        IMethodSymbol method)
     {
         var loc = method.Locations.FirstOrDefault(l => l.IsInSource);
         if (loc?.SourceTree?.FilePath is null)
             return;
 
-        AddNode(nodes, nodeKeys, IndexedCallableNodeFactory.Create(method, loc));
+        var methodKey = GetOrAddMethodKey(method, methodKeyCache);
+        if (!nodeKeys.Add(methodKey))
+            return;
+
+        nodes.Add(IndexedCallableNodeFactory.Create(method, loc));
     }
 
     private static bool IsInterfaceCall(IInvocationOperation invocation, out IMethodSymbol? interfaceMethod)
@@ -347,6 +362,7 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IMethodSymbol interfaceMethod,
         Dictionary<string, List<INamedTypeSymbol>> interfaceImplementations)
@@ -365,7 +381,7 @@ internal static class DocumentCallGraphExtractor
             if (implementationMethod is null)
                 continue;
 
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, implementationMethod, "calls-via-interface");
+            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, implementationMethod, "calls-via-interface");
         }
     }
 
@@ -374,6 +390,7 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IInvocationOperation invocation,
         IMethodSymbol callee,
@@ -388,11 +405,11 @@ internal static class DocumentCallGraphExtractor
 
         foreach (var handler in handlers)
         {
-            var handlerKey = SymbolKeyFormatter.Format(handler);
+            var handlerKey = GetOrAddMethodKey(handler, methodKeyCache);
             if (string.Equals(handlerKey, callerKey, StringComparison.Ordinal))
                 continue;
 
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, handler, "calls-via-message");
+            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, handler, "calls-via-message");
         }
     }
 
@@ -467,17 +484,15 @@ internal static class DocumentCallGraphExtractor
         return true;
     }
 
-    private static bool HasPotentialMissingInvocationOperations(SyntaxNode declaration, int invocationOperationCount)
+    private static bool ContainsPotentialSameTypeInvocation(SyntaxNode declaration)
     {
         var bodySyntax = GetBodySyntax(declaration);
         if (bodySyntax is null)
             return false;
 
-        var seenInvocations = 0;
-        foreach (var _ in bodySyntax.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<InvocationExpressionSyntax>())
+        foreach (var invocation in bodySyntax.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<InvocationExpressionSyntax>())
         {
-            seenInvocations++;
-            if (seenInvocations > invocationOperationCount)
+            if (TryGetSameTypeInvokedMethodName(invocation.Expression, out _))
                 return true;
         }
 
@@ -500,12 +515,27 @@ internal static class DocumentCallGraphExtractor
         return methods;
     }
 
-    private static void AddNode(ICollection<Node> nodes, ISet<string> nodeKeys, Node node)
+    private static void AddDeclaredNode(
+        ICollection<Node> nodes,
+        ISet<string> nodeKeys,
+        string methodKey,
+        IMethodSymbol method,
+        Location location)
     {
-        if (!nodeKeys.Add(node.Id))
+        if (!nodeKeys.Add(methodKey))
             return;
 
-        nodes.Add(node);
+        nodes.Add(IndexedCallableNodeFactory.Create(method, location));
+    }
+
+    private static string GetOrAddMethodKey(IMethodSymbol method, IDictionary<IMethodSymbol, string> methodKeyCache)
+    {
+        if (methodKeyCache.TryGetValue(method, out var key))
+            return key;
+
+        key = SymbolKeyFormatter.Format(method);
+        methodKeyCache[method] = key;
+        return key;
     }
 
     private static IMethodSymbol? ExtractReferencedMethod(IOperation? operation)
@@ -524,6 +554,7 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IPropertyReferenceOperation propertyReference)
     {
@@ -536,30 +567,30 @@ internal static class DocumentCallGraphExtractor
         if (parent is ISimpleAssignmentOperation simpleAssignment && ReferenceEquals(simpleAssignment.Target, propertyReference))
         {
             if (property.SetMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.SetMethod, "calls-via-property-set");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.SetMethod, "calls-via-property-set");
             return;
         }
 
         if (parent is ICompoundAssignmentOperation compoundAssignment && ReferenceEquals(compoundAssignment.Target, propertyReference))
         {
             if (property.GetMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.GetMethod, "calls-via-property-get");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.GetMethod, "calls-via-property-get");
             if (property.SetMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.SetMethod, "calls-via-property-set");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.SetMethod, "calls-via-property-set");
             return;
         }
 
         if (parent is IIncrementOrDecrementOperation incrementOrDecrement && ReferenceEquals(incrementOrDecrement.Target, propertyReference))
         {
             if (property.GetMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.GetMethod, "calls-via-property-get");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.GetMethod, "calls-via-property-get");
             if (property.SetMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.SetMethod, "calls-via-property-set");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.SetMethod, "calls-via-property-set");
             return;
         }
 
         if (property.GetMethod is not null)
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, property.GetMethod, "calls-via-property-get");
+            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, property.GetMethod, "calls-via-property-get");
     }
 
     private static void AddEventAccessorEdges(
@@ -567,6 +598,7 @@ internal static class DocumentCallGraphExtractor
         HashSet<string> edgeKeys,
         ICollection<Node> nodes,
         ISet<string> nodeKeys,
+        IDictionary<IMethodSymbol, string> methodKeyCache,
         string callerKey,
         IEventAssignmentOperation eventAssignment)
     {
@@ -577,16 +609,16 @@ internal static class DocumentCallGraphExtractor
         if (eventAssignment.Adds)
         {
             if (eventSymbol.AddMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, eventSymbol.AddMethod, "calls-via-event-add");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, eventSymbol.AddMethod, "calls-via-event-add");
         }
         else
         {
             if (eventSymbol.RemoveMethod is not null)
-                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, eventSymbol.RemoveMethod, "calls-via-event-remove");
+                AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, eventSymbol.RemoveMethod, "calls-via-event-remove");
         }
 
         var handlerMethod = ExtractReferencedMethod(eventAssignment.HandlerValue);
         if (handlerMethod is not null)
-            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, handlerMethod, "calls-via-event-handler");
+            AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, methodKeyCache, callerKey, handlerMethod, "calls-via-event-handler");
     }
 }
