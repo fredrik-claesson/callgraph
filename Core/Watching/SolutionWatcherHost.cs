@@ -11,6 +11,7 @@ public sealed class SolutionWatcherHost : BackgroundService, ISolutionWatcherReg
     private readonly ILogger<SolutionWatcherHost> _logger;
     private readonly ISolutionLoader _solutionLoader;
     private readonly IIndexStore _indexStore;
+    private readonly IIndexJobStore _jobStore;
     private readonly ISolutionIndexer _solutionIndexer;
     private readonly ConcurrentDictionary<string, ActiveWatcher> _watchers = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _sync = new(1, 1);
@@ -19,11 +20,13 @@ public sealed class SolutionWatcherHost : BackgroundService, ISolutionWatcherReg
         ILogger<SolutionWatcherHost> logger,
         ISolutionLoader solutionLoader,
         IIndexStore indexStore,
+        IIndexJobStore jobStore,
         ISolutionIndexer solutionIndexer)
     {
         _logger = logger;
         _solutionLoader = solutionLoader;
         _indexStore = indexStore;
+        _jobStore = jobStore;
         _solutionIndexer = solutionIndexer;
     }
 
@@ -49,6 +52,7 @@ public sealed class SolutionWatcherHost : BackgroundService, ISolutionWatcherReg
                 slnOnly,
                 _solutionLoader,
                 _indexStore,
+                _jobStore,
                 _solutionIndexer,
                 _logger);
 

@@ -18,6 +18,7 @@ public sealed class SolutionWatcher : IDisposable
     private readonly bool _slnOnly;
     private readonly ISolutionLoader _solutionLoader;
     private readonly IIndexStore _indexStore;
+    private readonly IIndexJobStore _jobStore;
     private readonly ISolutionIndexer _solutionIndexer;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<string, DateTime> _pendingUpdates = new(StringComparer.OrdinalIgnoreCase);
@@ -35,12 +36,14 @@ public sealed class SolutionWatcher : IDisposable
     private Dictionary<string, Document>? _cachedDocumentLookup;
     private Task<DispatchMaps>? _cachedDispatchMaps;
     private readonly SemaphoreSlim _contextLock = new(1, 1);
+    private string? _activeReindexJobId;
 
     public SolutionWatcher(
         string solutionPath,
         bool slnOnly,
         ISolutionLoader solutionLoader,
         IIndexStore indexStore,
+        IIndexJobStore jobStore,
         ISolutionIndexer solutionIndexer,
         ILogger logger)
     {
@@ -48,6 +51,7 @@ public sealed class SolutionWatcher : IDisposable
         _slnOnly = slnOnly;
         _solutionLoader = solutionLoader;
         _indexStore = indexStore;
+        _jobStore = jobStore;
         _solutionIndexer = solutionIndexer;
         _logger = logger;
     }
@@ -486,6 +490,36 @@ public sealed class SolutionWatcher : IDisposable
         }
     }
 
+    private bool RefreshActiveReindexState()
+    {
+        if (string.IsNullOrWhiteSpace(_activeReindexJobId))
+            return false;
+
+        if (!_jobStore.TryGetJob(_activeReindexJobId, out var jobStatus))
+        {
+            // Best effort: if status cannot be loaded, keep buffering updates to avoid racing
+            // watcher incremental writes with an unknown reindex state.
+            return true;
+        }
+
+        if (!IsTerminalJobStatus(jobStatus.Status))
+            return true;
+
+        _logger.LogInformation(
+            "Full reindex job {JobId} reached terminal state {Status} for {SolutionPath}. Replaying buffered file changes.",
+            jobStatus.JobId,
+            jobStatus.Status,
+            _solutionPath);
+        _activeReindexJobId = null;
+        return false;
+    }
+
+    private static bool IsTerminalJobStatus(string status)
+        => string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, "Canceled", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(status, "Superseded", StringComparison.OrdinalIgnoreCase);
+
     private void InvalidateCachedContext()
     {
         _cachedDocumentLookup = null;
@@ -642,6 +676,7 @@ public sealed class SolutionWatcher : IDisposable
         try
         {
             var now = DateTime.UtcNow;
+            var reindexInFlight = RefreshActiveReindexState();
 
             // Log queue sizes before processing
             var pendingDeleteCount = _pendingDeletes.Count;
@@ -657,94 +692,108 @@ public sealed class SolutionWatcher : IDisposable
                     _reindexRequestedAtUtc.HasValue);
             }
 
-            // Process deletes
-            var deletes = _pendingDeletes
-                .Where(kvp => now - kvp.Value >= DebounceDelay)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            if (deletes.Count > 0)
+            List<string> deletes = [];
+            List<string> updates = [];
+            if (!reindexInFlight)
             {
-                _logger.LogInformation(
-                    "Processing {DeleteCount} file deletions for {SolutionPath}.",
-                    deletes.Count,
-                    _solutionPath);
+                // Process deletes
+                deletes = _pendingDeletes
+                    .Where(kvp => now - kvp.Value >= DebounceDelay)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
 
-                foreach (var file in deletes)
+                if (deletes.Count > 0)
                 {
-                    _pendingDeletes.TryRemove(file, out _);
-                    _eventCounts.TryRemove(file, out _);
-
-                    try
-                    {
-                        await _indexStore.RemoveFileAsync(_solutionPath, file, _cts.Token).ConfigureAwait(false);
-                        _logger.LogTrace("Removed file from index: {FilePath}", file);
-                        Interlocked.Increment(ref _totalEventsProcessed);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to remove file from index: {FilePath}", file);
-                    }
-                }
-            }
-
-            // Process updates
-            var updates = _pendingUpdates
-                .Where(kvp => now - kvp.Value >= DebounceDelay)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            if (updates.Count > 0)
-            {
-                _logger.LogInformation(
-                    "Processing {UpdateCount} file updates for {SolutionPath}.",
-                    updates.Count,
-                    _solutionPath);
-
-                foreach (var file in updates)
-                {
-                    _pendingUpdates.TryRemove(file, out _);
-                    _eventCounts.TryRemove(file, out _);
-                }
-
-                try
-                {
-                    var indexingStarted = DateTime.UtcNow;
-
-                    // Use cached context for incremental indexing to avoid reloading solution
-                    var indexed = await IndexFilesWithCachedContextAsync(updates, _cts.Token)
-                        .ConfigureAwait(false);
-
-                    var indexingDuration = DateTime.UtcNow - indexingStarted;
-
                     _logger.LogInformation(
-                        "Indexed {IndexedCount}/{RequestedCount} files in {Duration}ms (using cached context).",
-                        indexed.Count,
-                        updates.Count,
-                        indexingDuration.TotalMilliseconds);
+                        "Processing {DeleteCount} file deletions for {SolutionPath}.",
+                        deletes.Count,
+                        _solutionPath);
 
-                    foreach (var update in indexed)
+                    foreach (var file in deletes)
                     {
+                        _pendingDeletes.TryRemove(file, out _);
+                        _eventCounts.TryRemove(file, out _);
+
                         try
                         {
-                            await _indexStore.UpdateFileAsync(_solutionPath, update, _cts.Token).ConfigureAwait(false);
-                            _logger.LogTrace("Updated file in index: {FilePath}", update.FilePath);
+                            await _indexStore.RemoveFileAsync(_solutionPath, file, _cts.Token).ConfigureAwait(false);
+                            _logger.LogTrace("Removed file from index: {FilePath}", file);
                             Interlocked.Increment(ref _totalEventsProcessed);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Failed to update file in index: {FilePath}", update.FilePath);
+                            _logger.LogWarning(ex, "Failed to remove file from index: {FilePath}", file);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to index files for {SolutionPath}. Invalidating cache.", _solutionPath);
 
-                    // Invalidate cache on error and fallback to full reindex
-                    InvalidateCachedContext();
-                    RequestReindex();
+                // Process updates
+                updates = _pendingUpdates
+                    .Where(kvp => now - kvp.Value >= DebounceDelay)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                if (updates.Count > 0)
+                {
+                    _logger.LogInformation(
+                        "Processing {UpdateCount} file updates for {SolutionPath}.",
+                        updates.Count,
+                        _solutionPath);
+
+                    foreach (var file in updates)
+                    {
+                        _pendingUpdates.TryRemove(file, out _);
+                        _eventCounts.TryRemove(file, out _);
+                    }
+
+                    try
+                    {
+                        var indexingStarted = DateTime.UtcNow;
+
+                        // Use cached context for incremental indexing to avoid reloading solution
+                        var indexed = await IndexFilesWithCachedContextAsync(updates, _cts.Token)
+                            .ConfigureAwait(false);
+
+                        var indexingDuration = DateTime.UtcNow - indexingStarted;
+
+                        _logger.LogInformation(
+                            "Indexed {IndexedCount}/{RequestedCount} files in {Duration}ms (using cached context).",
+                            indexed.Count,
+                            updates.Count,
+                            indexingDuration.TotalMilliseconds);
+
+                        foreach (var update in indexed)
+                        {
+                            try
+                            {
+                                await _indexStore.UpdateFileAsync(_solutionPath, update, _cts.Token).ConfigureAwait(false);
+                                _logger.LogTrace("Updated file in index: {FilePath}", update.FilePath);
+                                Interlocked.Increment(ref _totalEventsProcessed);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to update file in index: {FilePath}", update.FilePath);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to index files for {SolutionPath}. Invalidating cache.", _solutionPath);
+
+                        // Invalidate cache on error and fallback to full reindex
+                        InvalidateCachedContext();
+                        RequestReindex();
+                    }
                 }
+            }
+            else if (pendingDeleteCount > 0 || pendingUpdateCount > 0)
+            {
+                _logger.LogDebug(
+                    "Buffering {DeleteCount} deletes and {UpdateCount} updates while full reindex job {JobId} is active for {SolutionPath}.",
+                    pendingDeleteCount,
+                    pendingUpdateCount,
+                    _activeReindexJobId,
+                    _solutionPath);
             }
 
             // Process reindex request
@@ -755,20 +804,16 @@ public sealed class SolutionWatcher : IDisposable
                 var metadataSignals = _pendingMetadataReindexSignals.ToArray();
                 _pendingMetadataReindexSignals.Clear();
 
-                // Clear pending updates/deletes since full reindex will handle everything
-                var clearedUpdates = _pendingUpdates.Count;
-                var clearedDeletes = _pendingDeletes.Count;
-                _pendingUpdates.Clear();
-                _pendingDeletes.Clear();
-                _eventCounts.Clear();
+                var bufferedUpdates = _pendingUpdates.Count;
+                var bufferedDeletes = _pendingDeletes.Count;
 
                 _logger.LogInformation(
                     "Watcher-triggered reindex queued for {SolutionPath}. " +
-                    "Metadata changes={MetadataSignalCount}. Cleared {UpdateCount} pending updates and {DeleteCount} pending deletes.",
+                    "Metadata changes={MetadataSignalCount}. Buffered updates={UpdateCount}, buffered deletes={DeleteCount}.",
                     _solutionPath,
                     metadataSignals.Length,
-                    clearedUpdates,
-                    clearedDeletes);
+                    bufferedUpdates,
+                    bufferedDeletes);
 
                 if (metadataSignals.Length > 0)
                 {
@@ -783,9 +828,14 @@ public sealed class SolutionWatcher : IDisposable
                         metadataPreview);
                 }
 
-                await _solutionIndexer
+                var reindexResponse = await _solutionIndexer
                     .EnqueueReindexAsync(new ReindexRequest(_solutionPath, _slnOnly), _cts.Token)
                     .ConfigureAwait(false);
+                _activeReindexJobId = reindexResponse.JobId;
+                _logger.LogInformation(
+                    "Tracking full reindex job {JobId} for {SolutionPath}. Buffered file changes will be replayed after completion.",
+                    reindexResponse.JobId,
+                    _solutionPath);
             }
 
             var processingDuration = DateTime.UtcNow - processingStarted;

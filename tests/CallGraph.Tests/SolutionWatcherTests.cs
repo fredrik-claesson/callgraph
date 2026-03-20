@@ -35,6 +35,7 @@ public sealed class SolutionWatcherTests
             slnOnly: true,
             solutionLoader,
             indexStore,
+            new InMemoryIndexJobStore(),
             solutionIndexer,
             NullLogger.Instance);
 
@@ -61,6 +62,7 @@ public sealed class SolutionWatcherTests
             slnOnly: true,
             solutionLoader,
             indexStore,
+            new InMemoryIndexJobStore(),
             solutionIndexer,
             NullLogger.Instance);
 
@@ -89,6 +91,7 @@ public sealed class SolutionWatcherTests
             slnOnly: true,
             blockingLoader,
             indexStore,
+            new InMemoryIndexJobStore(),
             new InMemorySolutionIndexer(),
             NullLogger.Instance);
 
@@ -134,6 +137,7 @@ public sealed class SolutionWatcherTests
             slnOnly: true,
             new ThrowingSolutionLoader(),
             indexStore,
+            new InMemoryIndexJobStore(),
             new InMemorySolutionIndexer(),
             NullLogger.Instance);
 
@@ -173,6 +177,7 @@ public sealed class SolutionWatcherTests
             slnOnly: true,
             new ThrowingSolutionLoader(),
             new InMemoryIndexStore(),
+            new InMemoryIndexJobStore(),
             new InMemorySolutionIndexer(),
             NullLogger.Instance);
 
@@ -183,6 +188,57 @@ public sealed class SolutionWatcherTests
 
             InvokeOnChanged(watcher, sourceFile);
             Assert.Equal(1, GetPendingUpdateCount(watcher));
+        }
+        finally
+        {
+            watcher.Dispose();
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BuffersFileDeletesWhileReindexIsRunning_ThenReplaysAfterCompletion()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-watch-buffer-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        var solutionPath = Path.Combine(tempDir, "Sample.sln");
+        await File.WriteAllTextAsync(solutionPath, string.Empty);
+
+        var deletedFile = Path.Combine(tempDir, "src", "Sample", "ToDelete.cs");
+        Directory.CreateDirectory(Path.GetDirectoryName(deletedFile)!);
+
+        var jobStore = new InMemoryIndexJobStore();
+        var job = jobStore.CreateJob("test-solution-id", "Running");
+        var indexStore = new CountingDeleteIndexStore();
+
+        var watcher = new SolutionWatcher(
+            solutionPath,
+            slnOnly: true,
+            new ThrowingSolutionLoader(),
+            indexStore,
+            jobStore,
+            new InMemorySolutionIndexer(),
+            NullLogger.Instance);
+
+        try
+        {
+            SetActiveReindexJobId(watcher, job.JobId);
+
+            InvokeOnDeleted(watcher, deletedFile);
+            Assert.Equal(1, GetPendingDeleteCount(watcher));
+
+            await Task.Delay(TimeSpan.FromMilliseconds(900));
+            await InvokeProcessQueueAsync(watcher);
+
+            Assert.Equal(0, indexStore.RemoveCallCount);
+            Assert.Equal(1, GetPendingDeleteCount(watcher));
+
+            jobStore.UpdateJob(new IndexJobStatusResponse(job.JobId, job.SolutionId, "Completed"));
+            await InvokeProcessQueueAsync(watcher);
+
+            Assert.Equal(1, indexStore.RemoveCallCount);
+            Assert.Equal(0, GetPendingDeleteCount(watcher));
         }
         finally
         {
@@ -219,6 +275,35 @@ public sealed class SolutionWatcherTests
             [watcher, new FileSystemEventArgs(WatcherChangeTypes.Changed, directory, fileName)]);
     }
 
+    private static void InvokeOnDeleted(SolutionWatcher watcher, string filePath)
+    {
+        var onDeleted = typeof(SolutionWatcher).GetMethod("OnDeleted", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(onDeleted);
+
+        var directory = Path.GetDirectoryName(filePath)!;
+        var fileName = Path.GetFileName(filePath);
+        onDeleted!.Invoke(
+            watcher,
+            [watcher, new FileSystemEventArgs(WatcherChangeTypes.Deleted, directory, fileName)]);
+    }
+
+    private static async Task InvokeProcessQueueAsync(SolutionWatcher watcher)
+    {
+        var processQueue = typeof(SolutionWatcher).GetMethod("ProcessQueueAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(processQueue);
+
+        var task = processQueue!.Invoke(watcher, null) as Task;
+        Assert.NotNull(task);
+        await task!;
+    }
+
+    private static void SetActiveReindexJobId(SolutionWatcher watcher, string jobId)
+    {
+        var activeReindexJobIdField = typeof(SolutionWatcher).GetField("_activeReindexJobId", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(activeReindexJobIdField);
+        activeReindexJobIdField!.SetValue(watcher, jobId);
+    }
+
     private static int GetPendingUpdateCount(SolutionWatcher watcher)
     {
         var pendingUpdatesField = typeof(SolutionWatcher).GetField("_pendingUpdates", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -230,6 +315,19 @@ public sealed class SolutionWatcherTests
         var countProperty = pendingUpdates!.GetType().GetProperty("Count");
         Assert.NotNull(countProperty);
         return (int)countProperty!.GetValue(pendingUpdates)!;
+    }
+
+    private static int GetPendingDeleteCount(SolutionWatcher watcher)
+    {
+        var pendingDeletesField = typeof(SolutionWatcher).GetField("_pendingDeletes", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(pendingDeletesField);
+
+        var pendingDeletes = pendingDeletesField!.GetValue(watcher);
+        Assert.NotNull(pendingDeletes);
+
+        var countProperty = pendingDeletes!.GetType().GetProperty("Count");
+        Assert.NotNull(countProperty);
+        return (int)countProperty!.GetValue(pendingDeletes)!;
     }
 
     private static int GetWatcherCount(SolutionWatcher watcher)
@@ -343,6 +441,95 @@ public sealed class SolutionWatcherTests
 
         public Task<IndexJobResponse> EnqueueReindexAsync(ReindexRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new IndexJobResponse(Guid.NewGuid().ToString(), "test-solution-id"));
+    }
+
+    private sealed class CountingDeleteIndexStore : IIndexStore
+    {
+        public int RemoveCallCount { get; private set; }
+
+        public Task ClearAsync(CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task SaveAsync(SolutionIndex index, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task<SolutionIndex?> LoadAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult<SolutionIndex?>(null);
+
+        public Task<IReadOnlyList<SolutionInfo>> ListSolutionsAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SolutionInfo>>(Array.Empty<SolutionInfo>());
+
+        public Task<SolutionInfo?> GetSolutionByPathAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult<SolutionInfo?>(null);
+
+        public Task<DateTime?> GetIndexedAtUtcAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult<DateTime?>(null);
+
+        public Task<SolutionInfo?> GetSolutionByIdAsync(string solutionId, CancellationToken cancellationToken)
+            => Task.FromResult<SolutionInfo?>(null);
+
+        public Task<IReadOnlyList<IndexedFileInfo>> ListFilesAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<IndexedFileInfo>>(Array.Empty<IndexedFileInfo>());
+
+        public Task<IReadOnlyList<string>> ListProjectPathsAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+
+        public Task<IReadOnlyList<SolutionInfo>> FindSolutionsByFilePathAsync(string filePath, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SolutionInfo>>(Array.Empty<SolutionInfo>());
+
+        public Task<IReadOnlyList<SolutionFileMatch>> FindSolutionsByFilePathSuffixAsync(
+            string relativeFilePath,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SolutionFileMatch>>(Array.Empty<SolutionFileMatch>());
+
+        public Task<IReadOnlyList<SolutionProjectMatch>> FindProjectsByPathSuffixAsync(
+            string relativeProjectPath,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SolutionProjectMatch>>(Array.Empty<SolutionProjectMatch>());
+
+        public Task<IReadOnlyList<SearchFileMatch>> SearchFilesAsync(
+            string pattern,
+            bool useRegex,
+            string? solutionPath,
+            string? solutionId,
+            string? folderPath,
+            string? filePath,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SearchFileMatch>>(Array.Empty<SearchFileMatch>());
+
+        public Task<IReadOnlyList<SearchMethodMatch>> SearchMethodsAsync(
+            string pattern,
+            bool useRegex,
+            string? solutionPath,
+            string? solutionId,
+            string? folderPath,
+            string? filePath,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SearchMethodMatch>>(Array.Empty<SearchMethodMatch>());
+
+        public Task<IReadOnlyList<SearchMethodMatch>> ListMethodsAsync(
+            string visibility,
+            string? solutionPath,
+            string? solutionId,
+            string? folderPath,
+            string? filePath,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SearchMethodMatch>>(Array.Empty<SearchMethodMatch>());
+
+        public Task<Node?> GetMethodAsync(string solutionPath, string methodKey, CancellationToken cancellationToken)
+            => Task.FromResult<Node?>(null);
+
+        public Task<IReadOnlyList<Edge>> GetEdgesAsync(string solutionPath, string methodKey, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Edge>>(Array.Empty<Edge>());
+
+        public Task UpdateFileAsync(string solutionPath, FileIndex update, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task RemoveFileAsync(string solutionPath, string filePath, CancellationToken cancellationToken)
+        {
+            RemoveCallCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class ThrowingSolutionLoader : ISolutionLoader

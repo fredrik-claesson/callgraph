@@ -69,6 +69,7 @@ public sealed class LifecycleWatchBehaviorTests
             NullLogger<SolutionWatcherHost>.Instance,
             new SolutionLoader(new ProjectFilter(), new SolutionFileParser()),
             indexStore,
+            new InMemoryIndexJobStore(),
             new NoopSolutionIndexer());
 
         try
