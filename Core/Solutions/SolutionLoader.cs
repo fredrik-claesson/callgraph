@@ -98,10 +98,24 @@ public sealed class SolutionLoader : ISolutionLoader
             if (selectedProjectPaths.Count == 0)
                 return new SolutionLoadContext(workspace, []);
 
-            foreach (var projectPath in selectedProjectPaths)
+            var loadedProjectPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var projectPath in selectedProjectPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await workspace.OpenProjectAsync(projectPath, progress: null, cancellationToken).ConfigureAwait(false);
+                SyncLoadedProjectPaths(workspace, loadedProjectPaths);
+                if (loadedProjectPaths.Contains(projectPath))
+                    continue;
+
+                try
+                {
+                    await workspace.OpenProjectAsync(projectPath, progress: null, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ArgumentException) when (IsProjectLoaded(workspace, projectPath))
+                {
+                    // Some project graphs are already materialized by prior OpenProjectAsync calls.
+                    // If this path is already present in the workspace, skip duplicate-open failures.
+                }
             }
 
             var projects = workspace.CurrentSolution.Projects
@@ -125,4 +139,22 @@ public sealed class SolutionLoader : ISolutionLoader
             // Enable loading analyzer assemblies from NuGet packages.
             ["ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch"] = "true"
         };
+
+    private static bool IsProjectLoaded(MSBuildWorkspace workspace, string projectPath)
+    {
+        var normalizedProjectPath = Path.GetFullPath(projectPath);
+        return workspace.CurrentSolution.Projects.Any(project =>
+            project.FilePath is not null &&
+            string.Equals(Path.GetFullPath(project.FilePath), normalizedProjectPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void SyncLoadedProjectPaths(MSBuildWorkspace workspace, ISet<string> loadedProjectPaths)
+    {
+        foreach (var existingProjectPath in workspace.CurrentSolution.Projects
+                     .Select(project => project.FilePath)
+                     .Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            loadedProjectPaths.Add(Path.GetFullPath(existingProjectPath!));
+        }
+    }
 }
