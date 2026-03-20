@@ -47,6 +47,9 @@ internal static class DispatchMapBuilder
 
                 foreach (var methodDeclaration in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
+                    if (!LooksLikeMessageHandlerCandidate(methodDeclaration))
+                        continue;
+
                     var method = semanticModel.GetDeclaredSymbol(methodDeclaration, ct) as IMethodSymbol;
                     if (!IsMessageHandlerCandidate(method))
                         continue;
@@ -95,6 +98,24 @@ internal static class DispatchMapBuilder
 
         var containingTypeName = method.ContainingType?.Name ?? string.Empty;
         return containingTypeName.Contains("Handler", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeMessageHandlerCandidate(MethodDeclarationSyntax methodDeclaration)
+    {
+        if (methodDeclaration.ParameterList.Parameters.Count == 0)
+            return false;
+
+        if (methodDeclaration.Identifier.ValueText.Contains("Handle", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var containingTypeName = methodDeclaration
+            .Ancestors()
+            .OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault()?
+            .Identifier
+            .ValueText;
+
+        return containingTypeName?.Contains("Handler", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static bool IsMessagePayloadType(ITypeSymbol? type)

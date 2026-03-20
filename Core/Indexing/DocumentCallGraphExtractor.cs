@@ -37,6 +37,7 @@ internal static class DocumentCallGraphExtractor
             AddNode(nodes, nodeKeys, IndexedCallableNodeFactory.Create(caller, declaration.GetLocation()));
 
             var rootOperation = GetBodyOperation(model, declaration, cancellationToken);
+            var invocationOperationCount = 0;
             if (rootOperation is not null)
             {
                 foreach (var operation in EnumerateOperations(rootOperation))
@@ -45,6 +46,7 @@ internal static class DocumentCallGraphExtractor
                     {
                         case IInvocationOperation invocation:
                         {
+                            invocationOperationCount++;
                             var callee = invocation.TargetMethod;
                             AddMethodEdge(edges, edgeKeys, nodes, nodeKeys, callerKey, callee, "calls-direct");
 
@@ -101,16 +103,18 @@ internal static class DocumentCallGraphExtractor
 
             // Fallback: recover direct invocation edges from syntax when Roslyn IOperation misses parts of a method body.
             // This protects private-method inbound indexing against false "unused" positives.
-            AddSyntaxInvocationEdges(
-                model,
-                declaration,
-                caller,
-                callerKey,
-                edges,
-                edgeKeys,
-                nodes,
-                nodeKeys,
-                sameTypeMethodsCache);
+            if (rootOperation is null || HasPotentialMissingInvocationOperations(declaration, invocationOperationCount))
+            {
+                AddSyntaxInvocationEdges(
+                    declaration,
+                    caller,
+                    callerKey,
+                    edges,
+                    edgeKeys,
+                    nodes,
+                    nodeKeys,
+                    sameTypeMethodsCache);
+            }
         }
 
         return new DocumentCallGraph(nodes, edges);
@@ -163,7 +167,6 @@ internal static class DocumentCallGraphExtractor
     }
 
     private static void AddSyntaxInvocationEdges(
-        SemanticModel model,
         SyntaxNode declaration,
         IMethodSymbol caller,
         string callerKey,
@@ -184,7 +187,7 @@ internal static class DocumentCallGraphExtractor
 
         foreach (var invocation in bodySyntax.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<InvocationExpressionSyntax>())
         {
-            var callee = TryResolveInvokedMethod(model, invocation, containingType, sameTypeMethods);
+            var callee = TryResolveSameTypeInvokedMethod(invocation, containingType, sameTypeMethods);
             if (callee is null)
                 continue;
 
@@ -206,34 +209,28 @@ internal static class DocumentCallGraphExtractor
         };
     }
 
-    private static IMethodSymbol? TryResolveInvokedMethod(
-        SemanticModel model,
+    private static IMethodSymbol? TryResolveSameTypeInvokedMethod(
         InvocationExpressionSyntax invocation,
         INamedTypeSymbol? containingType,
         IReadOnlyList<IMethodSymbol>? sameTypeMethods)
     {
-        if (TryGetSameTypeInvokedMethodName(invocation.Expression, out var methodName) &&
-            containingType is not null &&
-            sameTypeMethods is not null &&
-            sameTypeMethods.Count > 0)
-        {
-            var argumentCount = invocation.ArgumentList.Arguments.Count;
-            var candidates = sameTypeMethods
-                .Where(m => string.Equals(m.Name, methodName, StringComparison.Ordinal))
-                .Where(m => IsArityCompatible(m, argumentCount))
-                .ToList();
+        if (!TryGetSameTypeInvokedMethodName(invocation.Expression, out var methodName))
+            return null;
 
-            if (candidates.Count == 1)
-                return candidates[0];
+        if (containingType is null || sameTypeMethods is null || sameTypeMethods.Count == 0)
+            return null;
 
-            var exactArity = candidates.Where(m => m.Parameters.Length == argumentCount).ToList();
-            if (exactArity.Count == 1)
-                return exactArity[0];
-        }
+        var argumentCount = invocation.ArgumentList.Arguments.Count;
+        var candidates = sameTypeMethods
+            .Where(m => string.Equals(m.Name, methodName, StringComparison.Ordinal))
+            .Where(m => IsArityCompatible(m, argumentCount))
+            .ToList();
 
-        var symbolInfo = model.GetSymbolInfo(invocation);
-        return symbolInfo.Symbol as IMethodSymbol
-               ?? symbolInfo.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+        if (candidates.Count == 1)
+            return candidates[0];
+
+        var exactArity = candidates.Where(m => m.Parameters.Length == argumentCount).ToList();
+        return exactArity.Count == 1 ? exactArity[0] : null;
     }
 
     private static bool TryGetSameTypeInvokedMethodName(ExpressionSyntax expression, out string methodName)
@@ -468,6 +465,23 @@ internal static class DocumentCallGraphExtractor
         }
 
         return true;
+    }
+
+    private static bool HasPotentialMissingInvocationOperations(SyntaxNode declaration, int invocationOperationCount)
+    {
+        var bodySyntax = GetBodySyntax(declaration);
+        if (bodySyntax is null)
+            return false;
+
+        var seenInvocations = 0;
+        foreach (var _ in bodySyntax.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<InvocationExpressionSyntax>())
+        {
+            seenInvocations++;
+            if (seenInvocations > invocationOperationCount)
+                return true;
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<IMethodSymbol> GetOrAddSameTypeMethods(
