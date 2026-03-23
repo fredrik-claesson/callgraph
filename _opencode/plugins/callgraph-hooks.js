@@ -8,6 +8,8 @@ export const CallGraphHooksPlugin = async () => {
   const fallbackAfterFailures = Number.isFinite(Number(fallbackAfterFailuresRaw))
     ? Math.max(0, Number.parseInt(fallbackAfterFailuresRaw ?? "2", 10))
     : 2
+  const policyModeRaw = (process.env.OPENCODE_CALLGRAPH_POLICY_MODE ?? "warn").toLowerCase()
+  const policyMode = policyModeRaw === "deny" ? "deny" : "warn"
   const stateDir = path.join(os.homedir(), ".config", "opencode", "plugins", ".state")
 
   const isBashLike = (tool) => tool === "bash" || tool === "powershell"
@@ -31,6 +33,10 @@ export const CallGraphHooksPlugin = async () => {
 
   const deny = (message) => {
     throw new Error(message)
+  }
+
+  const warn = (message) => {
+    console.warn(`[CallGraph hook hint] ${message}`)
   }
 
   const readCounter = async (filePath) => {
@@ -151,6 +157,11 @@ export const CallGraphHooksPlugin = async () => {
 
   const denyWithFailure = async (input, output, message) => {
     await recordFailure(input, output)
+    if (policyMode === "warn") {
+      warn(message)
+      return
+    }
+
     deny(message)
   }
 

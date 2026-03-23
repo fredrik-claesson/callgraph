@@ -35,13 +35,23 @@ if [[ -z "$CWD" ]]; then
 fi
 STATE_DIR="${HOME}/.copilot/hooks/.state"
 CALLGRAPH_FALLBACK_AFTER_FAILURES="${COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES:-2}"
+CALLGRAPH_POLICY_MODE="${COPILOT_CALLGRAPH_POLICY_MODE:-warn}"
 
 if ! [[ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" =~ ^[0-9]+$ ]]; then
   CALLGRAPH_FALLBACK_AFTER_FAILURES=2
 fi
 
+if [[ ! "$CALLGRAPH_POLICY_MODE" =~ ^(warn|deny)$ ]]; then
+  CALLGRAPH_POLICY_MODE=warn
+fi
+
 deny() {
   jq -nc --arg reason "$1" '{"permissionDecision":"deny","permissionDecisionReason":$reason}'
+  exit 0
+}
+
+allow() {
+  jq -nc --arg reason "$1" '{"permissionDecision":"allow","permissionDecisionReason":$reason}'
   exit 0
 }
 
@@ -124,8 +134,13 @@ mark_main_callgraph_usage() {
 }
 
 deny_with_callgraph_failure() {
+  local reason="$1"
   record_callgraph_failure
-  deny "$1"
+  if [[ "$CALLGRAPH_POLICY_MODE" == "warn" ]]; then
+    allow "Hint: $reason"
+  fi
+
+  deny "$reason"
 }
 
 is_narrow_shell_fallback() {

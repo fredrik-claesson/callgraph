@@ -68,6 +68,14 @@ Hook tuning (optional):
 - OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
 - Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
 
+Hook policy mode (shared):
+- Claude policy mode: `CLAUDE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- Copilot policy mode: `COPILOT_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- `warn`: do not block the tool call; return/log a policy hint.
+- `deny`: hard-block policy violations as errors.
+- Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`) to aggressively rewrite blocked C# shell exploration into CallGraph commands while still avoiding hard-block errors.
+
 See [QUICKSTART.md](QUICKSTART.md) for more details.
 
 ## CLI Usage

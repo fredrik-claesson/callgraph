@@ -35,6 +35,8 @@ CWD=$(echo "$INPUT" | jq -r '
   empty')
 STATE_DIR="${HOME}/.claude/hooks/.state"
 CALLGRAPH_FALLBACK_AFTER_FAILURES="${CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES:-2}"
+CALLGRAPH_POLICY_MODE="${CLAUDE_CALLGRAPH_POLICY_MODE:-warn}"
+CALLGRAPH_WARN_REDIRECT="${CLAUDE_CALLGRAPH_WARN_REDIRECT:-1}"
 
 if [ -z "$CMD" ]; then
   exit 0
@@ -42,6 +44,14 @@ fi
 
 if ! [[ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" =~ ^[0-9]+$ ]]; then
   CALLGRAPH_FALLBACK_AFTER_FAILURES=2
+fi
+
+if [[ ! "$CALLGRAPH_POLICY_MODE" =~ ^(warn|deny)$ ]]; then
+  CALLGRAPH_POLICY_MODE=warn
+fi
+
+if [[ ! "$CALLGRAPH_WARN_REDIRECT" =~ ^(0|1)$ ]]; then
+  CALLGRAPH_WARN_REDIRECT=1
 fi
 
 session_key() {
@@ -177,9 +187,95 @@ deny_command() {
   exit 0
 }
 
+is_callgraph_first_policy_reason() {
+  printf '%s' "$1" | grep -Fqi 'C# code exploration should use CallGraph first'
+}
+
+first_quoted_segment() {
+  local text="$1"
+  local quoted
+
+  quoted=$(printf '%s' "$text" | sed -nE 's/.*"([^"]{2,})".*/\1/p' | head -n1)
+  if [[ -n "$quoted" ]]; then
+    printf '%s' "$quoted"
+    return
+  fi
+
+  quoted=$(printf '%s' "$text" | sed -nE "s/.*'([^']{2,})'.*/\\1/p" | head -n1)
+  printf '%s' "$quoted"
+}
+
+escape_for_single_quotes() {
+  printf '%s' "$1" | sed "s/'/'\"'\"'/g"
+}
+
+derive_warn_redirect_command() {
+  local original="$1"
+  local rewritten=""
+  local canonical
+  local no_daemon_suffix=""
+  local file_pattern=""
+  local query=""
+
+  rewritten=$(callgraph rewrite --command "$original" 2>/dev/null) || rewritten=""
+  if [[ -n "$rewritten" && "$rewritten" != "$original" ]]; then
+    printf '%s' "$rewritten"
+    return 0
+  fi
+
+  canonical=$(printf '%s' "$original" | sed -E 's/[[:space:]]+2>&1[[:space:]]*$//')
+  if printf '%s' "$canonical" | grep -Eq -- '[[:space:]]+--no-daemon[[:space:]]*$'; then
+    no_daemon_suffix=' --no-daemon'
+    canonical=$(printf '%s' "$canonical" | sed -E 's/[[:space:]]+--no-daemon[[:space:]]*$//')
+  fi
+
+  file_pattern=$(printf '%s' "$canonical" | sed -nE "s/.*-name[[:space:]]+['\"]([^'\"]*\\.cs)['\"].*/\\1/p" | head -n1)
+  if [[ -z "$file_pattern" ]]; then
+    file_pattern=$(printf '%s' "$canonical" | sed -nE "s/.*--glob[[:space:]]+['\"]([^'\"]*\\.cs)['\"].*/\\1/p" | head -n1)
+  fi
+  if [[ -n "$file_pattern" ]]; then
+    printf 'callgraph search-file --pattern "%s"%s 2>&1' "$file_pattern" "$no_daemon_suffix"
+    return 0
+  fi
+
+  query=$(first_quoted_segment "$canonical")
+  if [[ -z "$query" ]]; then
+    return 1
+  fi
+
+  if printf '%s' "$query" | grep -Eqi '\.cs'; then
+    local basename_query
+    basename_query=$(basename "$query")
+    printf 'callgraph search-file --pattern "*%s*"%s 2>&1' "$basename_query" "$no_daemon_suffix"
+    return 0
+  fi
+
+  if printf '%s' "$query" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+    printf 'callgraph search-method --pattern "*%s*"%s 2>&1' "$query" "$no_daemon_suffix"
+    return 0
+  fi
+
+  printf "callgraph search-method --keywords '%s'%s 2>&1" "$(escape_for_single_quotes "$query")" "$no_daemon_suffix"
+  return 0
+}
+
 deny_with_callgraph_failure() {
+  local reason="$1"
+  local redirected_cmd=""
+
   record_callgraph_failure
-  deny_command "$1"
+  if [[ "$CALLGRAPH_POLICY_MODE" == "warn" ]]; then
+    if [[ "$CALLGRAPH_WARN_REDIRECT" == "1" ]] && is_callgraph_first_policy_reason "$reason" && command -v callgraph >/dev/null 2>&1; then
+      redirected_cmd=$(derive_warn_redirect_command "$CMD") || redirected_cmd=""
+      if [[ -n "$redirected_cmd" ]]; then
+        allow_command_with_updated_input "High-priority CallGraph policy redirect: replaced shell exploration with CallGraph" "$redirected_cmd" "1"
+      fi
+    fi
+
+    allow_command "High-priority CallGraph policy hint: $reason"
+  fi
+
+  deny_command "$reason"
 }
 
 is_narrow_shell_fallback() {
@@ -254,14 +350,35 @@ fi
 
 # Rewrite a common malformed search-method invocation:
 #   callgraph search-method FooBar  -> callgraph search-method --pattern "*FooBar*"
-if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
-   ! printf '%s' "$CMD" | grep -Eq -- '--(pattern|keywords|regex)\b'; then
-  BARE_QUERY=$(printf '%s' "$CMD" | sed -nE 's/^[[:space:]]*callgraph[[:space:]]+search-method[[:space:]]+("?[^-][^"]*"?)[[:space:]]*$/\1/p' | head -n1)
+CALLGRAPH_CMD_CANONICAL=$(printf '%s' "$CMD" | sed -E 's/[[:space:]]+2>&1[[:space:]]*$//')
+CALLGRAPH_NO_DAEMON_SUFFIX=""
+if printf '%s' "$CALLGRAPH_CMD_CANONICAL" | grep -Eq -- '[[:space:]]+--no-daemon[[:space:]]*$'; then
+  CALLGRAPH_NO_DAEMON_SUFFIX=' --no-daemon'
+  CALLGRAPH_CMD_CANONICAL=$(printf '%s' "$CALLGRAPH_CMD_CANONICAL" | sed -E 's/[[:space:]]+--no-daemon[[:space:]]*$//')
+fi
+
+if printf '%s' "$CALLGRAPH_CMD_CANONICAL" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
+   ! printf '%s' "$CALLGRAPH_CMD_CANONICAL" | grep -Eq -- '--(pattern|keywords|regex)\b'; then
+  BARE_QUERY=$(printf '%s' "$CALLGRAPH_CMD_CANONICAL" | sed -nE 's/^[[:space:]]*callgraph[[:space:]]+search-method[[:space:]]+("?[^-][^"]*"?)[[:space:]]*$/\1/p' | head -n1)
   if [ -n "$BARE_QUERY" ]; then
     BARE_QUERY=$(printf '%s' "$BARE_QUERY" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
     if [ -n "$BARE_QUERY" ]; then
-      REWRITTEN_CMD=$(printf 'callgraph search-method --pattern "*%s*" 2>&1' "$BARE_QUERY")
+      REWRITTEN_CMD=$(printf 'callgraph search-method --pattern "*%s*"%s 2>&1' "$BARE_QUERY" "$CALLGRAPH_NO_DAEMON_SUFFIX")
       allow_command_with_updated_input "CallGraph auto-rewrite: added --pattern for search-method" "$REWRITTEN_CMD" "1"
+    fi
+  fi
+fi
+
+# Rewrite a common malformed search-file invocation:
+#   callgraph search-file FooBar  -> callgraph search-file --pattern "*FooBar*"
+if printf '%s' "$CALLGRAPH_CMD_CANONICAL" | grep -Eq '^[[:space:]]*callgraph[[:space:]]+search-file\b' && \
+   ! printf '%s' "$CALLGRAPH_CMD_CANONICAL" | grep -Eq -- '--(pattern|regex)\b'; then
+  BARE_QUERY=$(printf '%s' "$CALLGRAPH_CMD_CANONICAL" | sed -nE 's/^[[:space:]]*callgraph[[:space:]]+search-file[[:space:]]+("?[^-][^"]*"?)[[:space:]]*$/\1/p' | head -n1)
+  if [ -n "$BARE_QUERY" ]; then
+    BARE_QUERY=$(printf '%s' "$BARE_QUERY" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
+    if [ -n "$BARE_QUERY" ]; then
+      REWRITTEN_CMD=$(printf 'callgraph search-file --pattern "*%s*"%s 2>&1' "$BARE_QUERY" "$CALLGRAPH_NO_DAEMON_SUFFIX")
+      allow_command_with_updated_input "CallGraph auto-rewrite: added --pattern for search-file" "$REWRITTEN_CMD" "1"
     fi
   fi
 fi

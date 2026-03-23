@@ -48,6 +48,10 @@ Hook tuning (optional):
 - Copilot hook fallback threshold: `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
 - OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
 - Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
+- Claude policy mode: `CLAUDE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- Copilot policy mode: `COPILOT_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`)
 
 Verify:
 

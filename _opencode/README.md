@@ -12,6 +12,13 @@ If `~/.config/opencode` exists, `callgraph install` copies:
 
 OpenCode loads local plugins from `~/.config/opencode/plugins` automatically.
 
+## Plugin policy mode
+
+- `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
+- `warn`: allow command execution and emit hook hints to logs
+- `deny`: throw hook errors and block policy violations
+- Fallback threshold remains configurable with `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+
 ## Agent
 
 After install, invoke the CallGraph-focused subagent with:
