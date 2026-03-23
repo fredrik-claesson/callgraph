@@ -423,4 +423,4 @@ if [ "$CALLGRAPH_FALLBACK_AFTER_FAILURES" -gt 0 ] && [ "$FAILURES" -ge "$CALLGRA
   allow_command "Allowed: narrow shell fallback after repeated CallGraph failures in this session"
 fi
 
-deny_with_callgraph_failure "C# code exploration should use CallGraph first. If this exact query cannot be rewritten, retry with search-file/list-methods/get-method-source. For explicit test-targeted queries, use a narrow shell fallback because test projects are excluded from the index."
+deny_with_callgraph_failure "CallGraph-first policy: do not use rg/find/grep for C# discovery before trying CallGraph. Run callgraph search-file/search-method/list-methods/get-method-source first (daemon, then --no-daemon on failure). Shell fallback is allowed only for explicit test-targeted queries or after repeated CallGraph failures."

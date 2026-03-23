@@ -1,5 +1,5 @@
 # C# Code Intelligence
-Use CallGraph skills first for C# code discovery whenever they can answer the question precisely:
+Default to CallGraph for C# code discovery. Do not use `rg`/`find`/`grep` until CallGraph daemon + `--no-daemon` retry both fail, unless the task explicitly targets tests:
 - Find methods by name/pattern → `callgraph-search-method`
 - Find files by name → `callgraph-search-file`
 - List methods in a class/file → `callgraph-list-methods`
@@ -21,7 +21,7 @@ explicitly in the prompt: "Use CallGraph skills (callgraph-search-method,
 callgraph-list-methods, callgraph-analyze-callgraph, and callgraph-get-method-source before falling back to grep/rg/find."
 
 Command execution policy for CallGraph:
-- Always run foreground/blocking commands and always append `2>&1`.
+- Always append `2>&1`.
 - Use daemon mode first for latency: `callgraph <command> ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph <command> ... --no-daemon 2>&1`.

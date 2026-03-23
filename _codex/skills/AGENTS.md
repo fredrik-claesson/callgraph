@@ -1,5 +1,5 @@
 # C# Code Intelligence
-Use CallGraph skills first for C# code discovery whenever they can answer the question precisely:
+Default to CallGraph for C# code discovery. Do not use `rg`/`find`/`grep` until CallGraph daemon + `--no-daemon` retry both fail, unless the task explicitly targets tests:
 - Find methods by name/pattern → `callgraph-search-method`
 - Find files by name → `callgraph-search-file`
 - List methods in a class/file → `callgraph-list-methods`

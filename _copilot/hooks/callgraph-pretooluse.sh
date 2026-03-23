@@ -210,7 +210,7 @@ if printf '%s' "$CMD" | grep -Eqi '\b(find|grep|rg|ls)\b' && \
     exit 0
   fi
 
-  deny_with_callgraph_failure 'C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.'
+  deny_with_callgraph_failure 'CallGraph-first policy: do not use rg/find/grep for C# discovery before trying CallGraph. Run callgraph search-file/search-method/list-methods/get-method-source first (daemon, then --no-daemon on failure). Shell fallback is allowed only for explicit test-targeted queries or after repeated CallGraph failures.'
 fi
 
 # Allow all other commands.

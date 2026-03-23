@@ -232,7 +232,7 @@ export const CallGraphHooksPlugin = async () => {
           return
         }
 
-        await denyWithFailure(input, output, "C# exploration should use CallGraph first. Try callgraph search-file, callgraph list-methods, or callgraph get-method-source.")
+        await denyWithFailure(input, output, "CallGraph-first policy: do not use rg/find/grep for C# discovery before trying CallGraph. Run callgraph search-file/search-method/list-methods/get-method-source first (daemon, then --no-daemon on failure). Shell fallback is allowed only for explicit test-targeted queries or after repeated CallGraph failures.")
       }
     },
   }
