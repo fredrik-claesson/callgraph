@@ -25,6 +25,9 @@ Command execution policy for CallGraph:
 - Use daemon mode first for latency: `callgraph <command> ... 2>&1`.
 - Retry with `--no-daemon` only on timeout/error/inconsistent output:
   `callgraph <command> ... --no-daemon 2>&1`.
+- `callgraph analyze` uses `--method` (never `--methodName`).
+- If a concrete method is known, start with `callgraph analyze --visibility internal --depth 1` and widen only when needed.
+- For `callgraph get-method-source`, prefer `--mode body_only` (or `body_without_comments`) unless signature context is explicitly required.
 - For exact identifier queries, prefer `search-file` + `list-methods` + `get-method-source` or identifier-based `search-method --pattern` before semantic keyword search.
 - For behavioral questions, use CallGraph to find candidate symbols first, then trace into the real implementation and stop only after you inspect the filter/query/sink logic.
 - Use shell `rg`/`find` only as a last-resort fallback after CallGraph retry still fails to locate targets, and keep fallback to one narrow query.
@@ -33,6 +36,15 @@ Command execution policy for CallGraph:
 - If deeper internals are needed, use two-stage analysis:
   1. map callers first with inbound + external depth 2,
   2. pick 1-3 candidates and run outbound + internal depth 2 per candidate.
+
+## Invocation Guardrails
+- Run one discovery command at a time. Do not submit parallel `callgraph`/shell discovery calls; a single failing sibling can cancel the whole batch.
+- If a command fails due to invalid/missing args, correct and rerun the same command sequentially before trying alternatives.
+- Required flag map (exact casing):
+  `callgraph analyze`: `--filepath` (lowercase `p`), optional `--method` (never `--methodName`).
+  `callgraph get-method-source`: `--filePath` plus one selector: `--methodName` or `--signature` or `--startLine`.
+  `callgraph list-warnings` / `callgraph list-unused`: both `--projectPath` and `--filePath`.
+- Prefer one command per call (no chained `&&` / `;`) so validation errors stay isolated and recoverable.
 
 ## Workflow Scenarios
 Select one scenario at the start and state it in one sentence.
@@ -72,3 +84,4 @@ collecting `method -> direct callees -> important awaits/state changes`.
 - If two consecutive full-file reads yield no new findings, stop and checkpoint before further reads.
 - Use Haiku subagents for bounded sidecar work (inventory/extraction), not final synthesis/tradeoff decisions.
 - Keep parallel subagents small and independent; default max 2 unless justified.
+- Reuse an existing subagent/thread for related follow-up questions instead of spawning a new one each time.

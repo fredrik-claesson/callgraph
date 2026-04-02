@@ -209,6 +209,20 @@ escape_for_single_quotes() {
   printf '%s' "$1" | sed "s/'/'\"'\"'/g"
 }
 
+extract_arg_value() {
+  local command="$1"
+  local flag="$2"
+  local value=""
+
+  value=$(printf '%s' "$command" | sed -nE "s/.*${flag}[[:space:]]+([^[:space:]]+).*/\\1/p" | head -n1)
+  if [ -z "$value" ]; then
+    value=$(printf '%s' "$command" | sed -nE "s/.*${flag}=([^[:space:]]+).*/\\1/p" | head -n1)
+  fi
+
+  value=$(printf '%s' "$value" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//')
+  printf '%s' "$value"
+}
+
 derive_warn_redirect_command() {
   local original="$1"
   local rewritten=""
@@ -307,6 +321,7 @@ fi
 
 if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+analyze\b'; then
   CMD=$(printf '%s' "$CMD" | perl -pe 's/--filePath\b/--filepath/ig')
+  CMD=$(printf '%s' "$CMD" | perl -pe 's/--methodName\b/--method/ig')
 fi
 
 if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b'; then
@@ -387,6 +402,42 @@ fi
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
   if [ "$CMD" != "$ORIGINAL_CMD" ]; then
     allow_command_with_updated_input "CallGraph auto-correction applied" "$CMD" "1"
+  fi
+
+  if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b' && \
+     ! printf '%s' "$CMD" | grep -Eqi -- '--mode([[:space:]]+|=)'; then
+    mark_main_callgraph_usage
+    reset_callgraph_failures
+    allow_command "Hint: prefer callgraph get-method-source --mode body_only for token-efficient method reads (use signature_plus_body only when signatures are explicitly needed)"
+  fi
+
+  if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+analyze\b'; then
+    HAS_METHOD_FLAG=0
+    if printf '%s' "$CMD" | grep -Eqi -- '--method([[:space:]]+|=)'; then
+      HAS_METHOD_FLAG=1
+    fi
+
+    DEPTH_HINT=$(extract_arg_value "$CMD" '--depth')
+    if [ -z "$DEPTH_HINT" ]; then
+      DEPTH_HINT=1
+    fi
+
+    if [ "$HAS_METHOD_FLAG" -eq 0 ] && [ "$DEPTH_HINT" -gt 1 ] 2>/dev/null; then
+      mark_main_callgraph_usage
+      reset_callgraph_failures
+      allow_command "Hint: analyze without --method can explode output. If you have a concrete symbol, use --method <Name> and start with --visibility internal --depth 1, then widen only if needed"
+    fi
+  fi
+
+  if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
+     printf '%s' "$CMD" | grep -Eqi -- '--keywords([[:space:]]+|=)' && \
+     ! printf '%s' "$CMD" | grep -Eqi -- '--pattern([[:space:]]+|=)'; then
+    KEYWORDS_HINT=$(extract_arg_value "$CMD" '--keywords')
+    if printf '%s' "$KEYWORDS_HINT" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+      mark_main_callgraph_usage
+      reset_callgraph_failures
+      allow_command "Hint: for identifier-known lookup, prefer search-method --pattern \"*${KEYWORDS_HINT}*\" (plus --filePath/--solutionPath scope) over --keywords"
+    fi
   fi
 
   mark_main_callgraph_usage

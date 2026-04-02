@@ -22,6 +22,7 @@ callgraph analyze --filepath "C:\path\to\file.cs" --method "MethodName" --depth 
 ## Parameters
 - `filepath` (required): If relative, resolve against workspace
 - `method` (optional, case-sensitive)
+- IMPORTANT: for `callgraph analyze`, use `--method` (not `--methodName`, which is for `get-method-source`)
 - `depth` (optional, default 1)
 - `direction`: inbound | outbound | bi-directional (default bi-directional)
 - `visibility`: external | internal (default external)
@@ -41,6 +42,8 @@ callgraph analyze --filepath "C:\path\to\file.cs" --method "MethodName" --depth 
 Both modes traverse ALL edges including private/internal methods:
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.
 - `internal`: Method-based depth. Every call increments depth. Use for detailed tracing.
+- If a concrete method is known, prefer starting with `--visibility internal --depth 1` to keep output focused, then widen only if needed.
+- Safety cap: when using `internal`, depth should be `<= 2`.
 
 ## Error handling
 - **AmbiguousSolution**: Rerun with `solutionPath` or `solutionId`

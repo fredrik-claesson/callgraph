@@ -18,6 +18,7 @@ OpenCode loads local plugins from `~/.config/opencode/plugins` automatically.
 - `warn`: allow command execution and emit hook hints to logs
 - `deny`: throw hook errors and block policy violations
 - Fallback threshold remains configurable with `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Plugin hints include explicit guidance for common mistakes (for example `callgraph analyze --methodName` should be `--method`, and `get-method-source` should usually use `--mode body_only`).
 
 ## Agent
 

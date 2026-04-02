@@ -56,8 +56,9 @@ What `install` does:
 - For Copilot CLI, installs reusable skills/agent assets in `~/.copilot` and prints a manual step for enabling hooks from repository `.github/hooks/*.json`.
 - For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` (including a plugin-based pre-tool hook policy in `plugins/callgraph-hooks.js`).
 - Installs `callgraph` command shim:
-  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
-  - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
+  - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
+  - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
+  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim when it is a symlink)
   - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
 - Updates Windows user `PATH` automatically (new shells).
 - On macOS/Linux, if `~/.local/bin` is not on `PATH`, it prints the exact export command.
@@ -75,6 +76,13 @@ Hook policy mode (shared):
 - `warn`: do not block the tool call; return/log a policy hint.
 - `deny`: hard-block policy violations as errors.
 - Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`) to aggressively rewrite blocked C# shell exploration into CallGraph commands while still avoiding hard-block errors.
+
+Explicit hook hint feedback (hook-enabled CLIs):
+- Hooks emit targeted hints for common high-cost mistakes:
+  - using `callgraph analyze --methodName` instead of `--method`
+  - running `get-method-source` without `--mode body_only`
+  - using `search-method --keywords` for single identifier lookups where `--pattern` is better
+- Claude and OpenCode hooks also auto-correct selected argument mistakes when safe (for example `--methodName` -> `--method` on `analyze`).
 
 See [QUICKSTART.md](QUICKSTART.md) for more details.
 

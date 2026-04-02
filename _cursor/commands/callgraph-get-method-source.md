@@ -18,6 +18,7 @@ Extract exact live C# method content from a known file path.
 - Required selectors: at least one of `--methodName`, `--signature`, or `--startLine`
 - Optional: `--containingType <Namespace.Type>`
 - Optional mode: `--mode signature_only|signature_plus_body|body_only|body_without_comments`
+- Prefer `--mode body_only` (or `body_without_comments`) for token-efficient reads; use `signature_plus_body` only when signature context is explicitly required.
 
 ## Action
 Run CLI:

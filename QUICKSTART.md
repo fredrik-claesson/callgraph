@@ -37,8 +37,9 @@ Installer behavior:
 - For Copilot CLI, installs reusable assets in `~/.copilot` and prints a manual step for enabling repository hooks from `.github/hooks/*.json`.
 - For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` including plugin-based hook policy.
 - Installs `callgraph` shim:
-  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim)
-  - macOS/Linux: first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
+  - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
+  - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
+  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim when it is a symlink)
   - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
 - Updates Windows user `PATH` automatically (new terminals).
 - On macOS/Linux, prints a `PATH` export line if `~/.local/bin` is not currently on `PATH`.

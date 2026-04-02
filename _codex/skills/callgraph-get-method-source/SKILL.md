@@ -29,6 +29,7 @@ Use CLI command: `callgraph get-method-source`
 - `signature_plus_body` (default)
 - `body_only`
 - `body_without_comments`
+- Prefer `body_only` (or `body_without_comments`) for token-efficient reads; use `signature_plus_body` only when signature context is explicitly required.
 
 ## CLI Example
 ```bash

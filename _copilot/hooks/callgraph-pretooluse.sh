@@ -165,6 +165,10 @@ fi
 
 # Guard against common callgraph usage errors.
 if printf '%s' "$CMD" | grep -Eqi '\bcallgraph\b' && printf '%s' "$CMD" | grep -Eqi '\banalyze\b'; then
+  if printf '%s' "$CMD" | grep -Eqi -- '--methodName([[:space:]]+|=)'; then
+    deny_with_callgraph_failure 'callgraph analyze uses --method (not --methodName). Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction inbound --visibility internal --depth 1 2>&1'
+  fi
+
   if ! printf '%s' "$CMD" | grep -Eqi -- '--file(path|Path)([[:space:]]+|=)'; then
     deny_with_callgraph_failure 'callgraph analyze requires --filepath <absolute-file.cs>. Example: callgraph analyze --filepath /abs/path/Foo.cs --method Bar --direction outbound --visibility external --depth 2 2>&1'
   fi
@@ -199,6 +203,21 @@ fi
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
   mark_main_callgraph_usage
   reset_callgraph_failures
+
+  if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b' && \
+     ! printf '%s' "$CMD" | grep -Eqi -- '--mode([[:space:]]+|=)'; then
+    allow 'Hint: prefer callgraph get-method-source --mode body_only for token-efficient method reads.'
+  fi
+
+  if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
+     printf '%s' "$CMD" | grep -Eqi -- '--keywords([[:space:]]+|=)' && \
+     ! printf '%s' "$CMD" | grep -Eqi -- '--pattern([[:space:]]+|=)'; then
+    KEYWORDS=$(extractArg "$CMD" "--keywords")
+    if printf '%s' "$KEYWORDS" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+      allow "Hint: for identifier-known lookup, prefer callgraph search-method --pattern \"*${KEYWORDS}*\" with scope (--filePath/--solutionPath)."
+    fi
+  fi
+
   exit 0
 fi
 

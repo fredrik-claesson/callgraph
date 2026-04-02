@@ -34,6 +34,15 @@ Command execution policy for CallGraph:
   1. map callers first with inbound + external depth 2,
   2. pick 1-3 candidates and run outbound + internal depth 2 per candidate.
 
+## Invocation Guardrails
+- Run one discovery command at a time. Do not submit parallel `callgraph`/shell discovery calls; a single failing sibling can cancel the whole batch.
+- If a command fails due to invalid/missing args, correct and rerun the same command sequentially before trying alternatives.
+- Required flag map (exact casing):
+  `callgraph analyze`: `--filepath` (lowercase `p`), optional `--method` (never `--methodName`).
+  `callgraph get-method-source`: `--filePath` plus one selector: `--methodName` or `--signature` or `--startLine`.
+  `callgraph list-warnings` / `callgraph list-unused`: both `--projectPath` and `--filePath`.
+- Prefer one command per call (no chained `&&` / `;`) so validation errors stay isolated and recoverable.
+
 ## Workflow Scenarios
 Select one scenario at the start and state it in one sentence.
 

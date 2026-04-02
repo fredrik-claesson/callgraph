@@ -30,6 +30,7 @@ Use this after method discovery to fetch exact implementation text from current 
 - `signature_plus_body` (default)
 - `body_only`
 - `body_without_comments`
+- Prefer `body_only` (or `body_without_comments`) for token-efficient reads; use `signature_plus_body` only when signature context is explicitly required.
 
 ## Action
 Run CLI:

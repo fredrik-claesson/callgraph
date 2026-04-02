@@ -187,16 +187,20 @@ export const CallGraphHooksPlugin = async () => {
 
       if (/^\s*callgraph\s+analyze\b/i.test(command)) {
         command = command.replace(/--filePath\b/gi, "--filepath")
+        command = command.replace(/--methodName\b/gi, "--method")
       }
 
       if (/^\s*callgraph\s+get-method-source\b/i.test(command) && !/--methodName(?:\s+|=)/i.test(command)) {
         command = command.replace(/--method\b/gi, "--methodName")
       }
 
-      if (command !== originalCommand) {
+      const commandAutoCorrected = command !== originalCommand
+      if (commandAutoCorrected) {
         if (output?.args && typeof output.args === "object") {
           output.args.command = command
         }
+
+        warn(`Auto-corrected CallGraph command: ${originalCommand} -> ${command}`)
       }
 
       if (/\bcallgraph\b/i.test(command) && /\banalyze\b/i.test(command)) {
@@ -222,6 +226,31 @@ export const CallGraphHooksPlugin = async () => {
       if (/^\s*callgraph\b/i.test(command)) {
         await markMainCallgraphUsage(input, output)
         await resetFailures(input, output)
+
+        if (/^\s*callgraph\s+get-method-source\b/i.test(command) && !/--mode(?:\s+|=)/i.test(command)) {
+          warn("Hint: prefer callgraph get-method-source --mode body_only for token-efficient method reads.")
+        }
+
+        if (/^\s*callgraph\s+analyze\b/i.test(command)) {
+          const hasMethod = /--method(?:\s+|=)/i.test(command)
+          const depthRaw = extractArg(command, "--depth")
+          const depth = Number.isFinite(Number(depthRaw)) ? Number(depthRaw) : 1
+          if (!hasMethod && depth > 1) {
+            warn("Hint: analyze without --method can produce very large output. If you have a concrete symbol, add --method <Name> and start with --visibility internal --depth 1.")
+          }
+        }
+
+        if (
+          /^\s*callgraph\s+search-method\b/i.test(command) &&
+          /--keywords(?:\s+|=)/i.test(command) &&
+          !/--pattern(?:\s+|=)/i.test(command)
+        ) {
+          const keywords = extractArg(command, "--keywords")
+          if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(keywords)) {
+            warn(`Hint: for identifier-known lookup, prefer callgraph search-method --pattern "*${keywords}*" with scope (--filePath/--solutionPath).`)
+          }
+        }
+
         return
       }
 

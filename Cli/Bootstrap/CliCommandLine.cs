@@ -44,7 +44,9 @@ internal static class CliCommandLine
               - Copilot CLI hooks are repository-scoped; install prints a manual copy step for .github/hooks.
               - OpenCode hooks are plugin-based; install deploys the local plugin hook to ~/.config/opencode/plugins.
               - install creates callgraph shim in a writable PATH directory on macOS/Linux (fallback ~/.local/bin), or %LocalAppData%\Programs\callgraph on Windows.
-              - on macOS/Linux, install removes duplicate callgraph symlinks found on PATH (keeps the newly installed shim).
+              - on macOS, install writes an executable copy for reboot-safe behavior; on Linux it writes a symlink.
+              - on macOS/Linux, install removes duplicate callgraph symlinks found on PATH (keeps the newly installed shim when it is a symlink).
+              - on macOS, install tries to clear com.apple.quarantine on the shim target to reduce Gatekeeper blocks.
               - install updates Windows user PATH unless --skip-path is provided.
               - `serve` idle timeout defaults to 600 minutes (10 hours); override with `--idleMinutes`.
               - `serve` watches all indexed solutions by default; disable with `--no-watch-indexed`.

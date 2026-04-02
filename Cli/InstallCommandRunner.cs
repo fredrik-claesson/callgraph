@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -207,17 +208,29 @@ internal static class InstallCommandRunner
         var targetPath = Path.Combine(binDir, "callgraph");
         TryDeleteFile(targetPath);
 
-        try
-        {
-            File.CreateSymbolicLink(targetPath, processPath);
-            messages.Add($"Installed CLI symlink: {targetPath} -> {processPath}");
-        }
-        catch
+        if (OperatingSystem.IsMacOS())
         {
             File.Copy(processPath, targetPath, overwrite: true);
             TryEnsureExecutable(targetPath);
-            messages.Add($"Installed CLI executable copy: {targetPath}");
+            messages.Add($"Installed CLI executable copy (stable on macOS): {targetPath}");
         }
+        else
+        {
+            try
+            {
+                File.CreateSymbolicLink(targetPath, processPath);
+                messages.Add($"Installed CLI symlink: {targetPath} -> {processPath}");
+            }
+            catch
+            {
+                File.Copy(processPath, targetPath, overwrite: true);
+                TryEnsureExecutable(targetPath);
+                messages.Add($"Installed CLI executable copy: {targetPath}");
+            }
+        }
+
+        TryClearMacOsQuarantine(processPath, messages);
+        TryClearMacOsQuarantine(targetPath, messages);
 
         messages.AddRange(CleanupDuplicateUnixShims(targetPath));
 
@@ -227,6 +240,78 @@ internal static class InstallCommandRunner
         }
 
         return (messages, null);
+    }
+
+    private static void TryClearMacOsQuarantine(string path, List<string> messages)
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var candidates = new HashSet<string>(StringComparer.Ordinal)
+        {
+            Path.GetFullPath(path)
+        };
+
+        try
+        {
+            var linkTarget = File.ResolveLinkTarget(path, returnFinalTarget: true);
+            if (linkTarget is not null && !string.IsNullOrWhiteSpace(linkTarget.FullName))
+                candidates.Add(Path.GetFullPath(linkTarget.FullName));
+        }
+        catch
+        {
+            // Ignore; path might not be a symlink.
+        }
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+                continue;
+
+            try
+            {
+                var startInfo = new ProcessStartInfo("/usr/bin/xattr")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
+                };
+                startInfo.ArgumentList.Add("-d");
+                startInfo.ArgumentList.Add("com.apple.quarantine");
+                startInfo.ArgumentList.Add(candidate);
+
+                using var process = Process.Start(startInfo);
+                if (process is null)
+                    continue;
+
+                process.WaitForExit();
+                var stderr = process.StandardError.ReadToEnd().Trim();
+                if (process.ExitCode == 0)
+                {
+                    messages.Add($"Cleared macOS quarantine attribute: {candidate}");
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(stderr) &&
+                    stderr.Contains("No such xattr", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                messages.Add(
+                    $"Warning: failed to clear macOS quarantine on {candidate}. " +
+                    $"Run manually: xattr -d com.apple.quarantine \"{candidate}\"");
+            }
+            catch
+            {
+                messages.Add(
+                    $"Warning: failed to clear macOS quarantine on {candidate}. " +
+                    $"Run manually: xattr -d com.apple.quarantine \"{candidate}\"");
+            }
+        }
     }
 
     private static (List<string> Messages, string? Error) EnsureWindowsUserPathContains(string installDir)
@@ -270,15 +355,39 @@ internal static class InstallCommandRunner
             .Any(entry => PathsEqual(entry, dir));
     }
 
-    private static string ResolveDefaultUnixBinDirectory(string home)
+    internal static string ResolveDefaultUnixBinDirectory(string home)
     {
-        var path = Environment.GetEnvironmentVariable("PATH");
+        return ResolveDefaultUnixBinDirectory(home, Environment.GetEnvironmentVariable("PATH"));
+    }
+
+    internal static string ResolveDefaultUnixBinDirectory(string home, string? path)
+    {
         if (!string.IsNullOrWhiteSpace(path))
         {
-            foreach (var entry in path
-                         .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            var entries = path
+                .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(Path.IsPathRooted)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            foreach (var entry in entries)
             {
-                if (!Path.IsPathRooted(entry))
+                if (!LooksLikeStableUnixShimDirectory(entry))
+                    continue;
+
+                if (!IsLikelyUnixBinDirectory(entry))
+                    continue;
+
+                if (CanWriteDirectory(entry))
+                    return entry;
+            }
+
+            foreach (var entry in path
+                         .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                         .Where(Path.IsPathRooted)
+                         .Distinct(StringComparer.Ordinal))
+            {
+                if (!LooksLikeStableUnixShimDirectory(entry))
                     continue;
 
                 if (CanWriteDirectory(entry))
@@ -307,6 +416,41 @@ internal static class InstallCommandRunner
         {
             return false;
         }
+    }
+
+    private static bool IsLikelyUnixBinDirectory(string directory)
+    {
+        var fullPath = Path.GetFullPath(directory);
+        var name = Path.GetFileName(fullPath.TrimEnd(Path.DirectorySeparatorChar));
+        if (string.Equals(name, "bin", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "sbin", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return fullPath.EndsWith("/bin", StringComparison.OrdinalIgnoreCase) ||
+               fullPath.EndsWith("/sbin", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeStableUnixShimDirectory(string directory)
+    {
+        var fullPath = Path.GetFullPath(directory);
+        var tempRoot = Path.GetFullPath(Path.GetTempPath());
+        if (fullPath.StartsWith(tempRoot, StringComparison.Ordinal))
+            return false;
+
+        if (fullPath.StartsWith("/tmp", StringComparison.Ordinal) ||
+            fullPath.StartsWith("/private/tmp", StringComparison.Ordinal) ||
+            fullPath.StartsWith("/var/tmp", StringComparison.Ordinal) ||
+            fullPath.StartsWith("/private/var/tmp", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (fullPath.Contains("/.codex/tmp/", StringComparison.Ordinal))
+            return false;
+
+        return true;
     }
 
     private static bool PathsEqual(string left, string right)

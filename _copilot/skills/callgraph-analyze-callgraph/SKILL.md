@@ -15,6 +15,7 @@ agent: callgraph-haiku
 Parse the user request for:
 - filepath (required)
 - --method <name> (optional, case-sensitive)
+- IMPORTANT: for `callgraph analyze`, the selector flag is `--method` (not `--methodName`, which is for `get-method-source`)
 - --depth <n> (optional, default 1)
 - --direction inbound|outbound|bi-directional (optional, default bi-directional)
 - --visibility external|internal (optional, default external)
@@ -33,6 +34,7 @@ Parse the user request for:
 ## Visibility (depth strategy)
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.
 - `internal`: Method-based depth. Every call increments depth. Use for detailed analysis.
+- If a concrete method is known, prefer starting with `--visibility internal --depth 1` to keep output focused, then widen only if needed.
 - Safety cap: when using `internal`, depth must be `<= 2`.
 - If deeper tracing is needed, use two-stage analysis:
   1. map callers first with `--direction inbound --visibility external --depth 2`,

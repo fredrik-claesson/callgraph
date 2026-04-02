@@ -12,6 +12,7 @@ public static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        EnsureWorkingDirectoryIsUsable();
         CallGraphComposition.EnsureMsBuildRegistered();
 
         Console.InputEncoding = Encoding.UTF8;
@@ -105,5 +106,45 @@ public static class Program
 
         builder.Services.AddCallGraphCore(builder.Configuration, includeHostedServices);
         return builder;
+    }
+
+    private static void EnsureWorkingDirectoryIsUsable()
+    {
+        try
+        {
+            var currentDirectory = Directory.GetCurrentDirectory();
+            if (!Directory.Exists(currentDirectory))
+                throw new DirectoryNotFoundException(
+                    $"Current working directory does not exist: {currentDirectory}");
+
+            return;
+        }
+        catch (Exception ex) when (ex is DirectoryNotFoundException or FileNotFoundException or IOException)
+        {
+            var fallback = ResolveFallbackWorkingDirectory();
+            if (fallback is null)
+                return;
+
+            try
+            {
+                Directory.SetCurrentDirectory(fallback);
+                Console.Error.WriteLine(
+                    $"Warning: current working directory is unavailable; switched to '{fallback}'.");
+            }
+            catch
+            {
+                // If we cannot recover, continue and let downstream initialization report the real failure.
+            }
+        }
+    }
+
+    private static string? ResolveFallbackWorkingDirectory()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(home) && Directory.Exists(home))
+            return home;
+
+        var temp = Path.GetTempPath();
+        return Directory.Exists(temp) ? temp : null;
     }
 }

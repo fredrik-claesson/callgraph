@@ -28,6 +28,7 @@ chmod +x ~/.copilot/hooks/callgraph-pretooluse.sh
 - `warn`: allow command execution and return a policy hint
 - `deny`: hard-block policy violations
 - Fallback threshold remains configurable with `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
+- Hook hint feedback includes explicit guidance for common mistakes (for example `callgraph analyze --methodName` should be `--method`, and `get-method-source` should usually use `--mode body_only`).
 
 ## Use the custom agent
 
