@@ -82,6 +82,7 @@ Explicit hook hint feedback (hook-enabled CLIs):
   - using `callgraph analyze --methodName` instead of `--method`
   - running `get-method-source` without `--mode body_only`
   - using `search-method --keywords` for single identifier lookups where `--pattern` is better
+  - repeating identical `callgraph` commands in the same session instead of reusing prior evidence
 - Claude and OpenCode hooks also auto-correct selected argument mistakes when safe (for example `--methodName` -> `--method` on `analyze`).
 
 See [QUICKSTART.md](QUICKSTART.md) for more details.

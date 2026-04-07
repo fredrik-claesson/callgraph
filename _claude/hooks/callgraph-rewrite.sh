@@ -297,6 +297,48 @@ is_narrow_shell_fallback() {
     printf '%s' "$1" | grep -Eqi '(\|[[:space:]]*(head|tail)\b|--max-count\b|(^|[[:space:]])-m[[:space:]]+[0-9]+|sed[[:space:]]+-n)'
 }
 
+canonicalize_callgraph_command() {
+  printf '%s' "$1" | sed -E 's/[[:space:]]+2>&1[[:space:]]*$//' | tr -s '[:space:]' ' ' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g'
+}
+
+callgraph_last_command_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-last-command-${key}.txt"
+}
+
+callgraph_repeat_counter_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-repeat-count-${key}.txt"
+}
+
+record_callgraph_command() {
+  local command="$1"
+  local canonical
+  canonical=$(canonicalize_callgraph_command "$command")
+  mkdir -p "$STATE_DIR"
+
+  local last_file repeat_file previous repeat_count
+  last_file=$(callgraph_last_command_file)
+  repeat_file=$(callgraph_repeat_counter_file)
+  previous=""
+  if [[ -f "$last_file" ]]; then
+    previous=$(cat "$last_file" 2>/dev/null || true)
+  fi
+
+  if [[ "$canonical" == "$previous" && -n "$canonical" ]]; then
+    repeat_count=$(read_counter "$repeat_file")
+    repeat_count=$((repeat_count + 1))
+  else
+    repeat_count=1
+  fi
+
+  printf '%s' "$canonical" > "$last_file"
+  write_counter "$repeat_file" "$repeat_count"
+  printf '%s' "$repeat_count"
+}
+
 # Allow lightweight environment checks so agents can diagnose CallGraph availability.
 if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*(which|command[[:space:]]+-v|type[[:space:]]+-P)[[:space:]]+callgraph\b'; then
   allow_command "Allowed: CallGraph availability check"
@@ -404,10 +446,15 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
     allow_command_with_updated_input "CallGraph auto-correction applied" "$CMD" "1"
   fi
 
+  mark_main_callgraph_usage
+  reset_callgraph_failures
+  REPEAT_COUNT=$(record_callgraph_command "$CMD")
+  if [ "${REPEAT_COUNT:-1}" -ge 2 ]; then
+    allow_command "Hint: identical CallGraph command repeated in this session (${REPEAT_COUNT}x). Reuse previous evidence unless scope changed or prior output was inconclusive"
+  fi
+
   if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b' && \
      ! printf '%s' "$CMD" | grep -Eqi -- '--mode([[:space:]]+|=)'; then
-    mark_main_callgraph_usage
-    reset_callgraph_failures
     allow_command "Hint: prefer callgraph get-method-source --mode body_only for token-efficient method reads (use signature_plus_body only when signatures are explicitly needed)"
   fi
 
@@ -423,8 +470,6 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
     fi
 
     if [ "$HAS_METHOD_FLAG" -eq 0 ] && [ "$DEPTH_HINT" -gt 1 ] 2>/dev/null; then
-      mark_main_callgraph_usage
-      reset_callgraph_failures
       allow_command "Hint: analyze without --method can explode output. If you have a concrete symbol, use --method <Name> and start with --visibility internal --depth 1, then widen only if needed"
     fi
   fi
@@ -434,14 +479,10 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
      ! printf '%s' "$CMD" | grep -Eqi -- '--pattern([[:space:]]+|=)'; then
     KEYWORDS_HINT=$(extract_arg_value "$CMD" '--keywords')
     if printf '%s' "$KEYWORDS_HINT" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
-      mark_main_callgraph_usage
-      reset_callgraph_failures
       allow_command "Hint: for identifier-known lookup, prefer search-method --pattern \"*${KEYWORDS_HINT}*\" (plus --filePath/--solutionPath scope) over --keywords"
     fi
   fi
 
-  mark_main_callgraph_usage
-  reset_callgraph_failures
   exit 0
 fi
 

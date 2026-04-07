@@ -148,6 +148,60 @@ is_narrow_shell_fallback() {
     printf '%s' "$1" | grep -Eqi '(\|[[:space:]]*(head|tail)\b|--max-count\b|(^|[[:space:]])-m[[:space:]]+[0-9]+|sed[[:space:]]+-n)'
 }
 
+extract_arg() {
+  local command="$1"
+  local flag="$2"
+  local value
+  value=$(printf '%s' "$command" | sed -nE "s/.*${flag}[[:space:]]+([^[:space:]]+).*/\\1/p" | head -n1)
+  if [[ -z "$value" ]]; then
+    value=$(printf '%s' "$command" | sed -nE "s/.*${flag}=([^[:space:]]+).*/\\1/p" | head -n1)
+  fi
+
+  printf '%s' "$value" | sed -E 's/^"//; s/"$//; s/^'\''//; s/'\''$//'
+}
+
+canonicalize_callgraph_command() {
+  printf '%s' "$1" | sed -E 's/[[:space:]]+2>&1[[:space:]]*$//' | tr -s '[:space:]' ' ' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g'
+}
+
+callgraph_last_command_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-last-command-${key}.txt"
+}
+
+callgraph_repeat_counter_file() {
+  local key
+  key=$(session_key)
+  printf '%s' "${STATE_DIR}/callgraph-repeat-count-${key}.txt"
+}
+
+record_callgraph_command() {
+  local command="$1"
+  local canonical
+  canonical=$(canonicalize_callgraph_command "$command")
+  mkdir -p "$STATE_DIR"
+
+  local last_file repeat_file previous repeat_count
+  last_file=$(callgraph_last_command_file)
+  repeat_file=$(callgraph_repeat_counter_file)
+  previous=""
+  if [[ -f "$last_file" ]]; then
+    previous=$(cat "$last_file" 2>/dev/null || true)
+  fi
+
+  if [[ "$canonical" == "$previous" && -n "$canonical" ]]; then
+    repeat_count=$(read_counter "$repeat_file")
+    repeat_count=$((repeat_count + 1))
+  else
+    repeat_count=1
+  fi
+
+  printf '%s' "$canonical" > "$last_file"
+  write_counter "$repeat_file" "$repeat_count"
+  printf '%s' "$repeat_count"
+}
+
 # Non-shell tools are out of scope for this policy.
 if [[ "$TOOL_NAME" != "bash" && "$TOOL_NAME" != "powershell" ]]; then
   exit 0
@@ -203,6 +257,11 @@ fi
 if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
   mark_main_callgraph_usage
   reset_callgraph_failures
+  REPEAT_COUNT=$(record_callgraph_command "$CMD")
+
+  if [[ "${REPEAT_COUNT:-1}" -ge 2 ]]; then
+    allow "Hint: identical CallGraph command repeated in this session (${REPEAT_COUNT}x). Reuse previous evidence unless scope changed or prior output was inconclusive."
+  fi
 
   if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+get-method-source\b' && \
      ! printf '%s' "$CMD" | grep -Eqi -- '--mode([[:space:]]+|=)'; then
@@ -212,7 +271,7 @@ if printf '%s' "$CMD" | grep -Eq '^[[:space:]]*callgraph\b'; then
   if printf '%s' "$CMD" | grep -Eqi '^[[:space:]]*callgraph[[:space:]]+search-method\b' && \
      printf '%s' "$CMD" | grep -Eqi -- '--keywords([[:space:]]+|=)' && \
      ! printf '%s' "$CMD" | grep -Eqi -- '--pattern([[:space:]]+|=)'; then
-    KEYWORDS=$(extractArg "$CMD" "--keywords")
+    KEYWORDS=$(extract_arg "$CMD" "--keywords")
     if printf '%s' "$KEYWORDS" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
       allow "Hint: for identifier-known lookup, prefer callgraph search-method --pattern \"*${KEYWORDS}*\" with scope (--filePath/--solutionPath)."
     fi

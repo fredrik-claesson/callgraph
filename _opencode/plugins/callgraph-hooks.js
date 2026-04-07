@@ -169,6 +169,44 @@ export const CallGraphHooksPlugin = async () => {
     /^[\s]*(rg|grep|find)\b/i.test(command) &&
     /(\|[\s]*(head|tail)\b|--max-count\b|(^|[\s])-m[\s]+\d+|sed[\s]+-n)/i.test(command)
 
+  const canonicalizeCallgraphCommand = (command) => command.replace(/\s+2>&1\s*$/i, "").replace(/\s+/g, " ").trim()
+
+  const repeatCounterPath = (input, output) => {
+    const key = sessionKey(extractSessionId(input, output), extractCwd(input, output))
+    return path.join(stateDir, `callgraph-repeat-count-${key}.txt`)
+  }
+
+  const lastCommandPath = (input, output) => {
+    const key = sessionKey(extractSessionId(input, output), extractCwd(input, output))
+    return path.join(stateDir, `callgraph-last-command-${key}.txt`)
+  }
+
+  const recordCallgraphCommand = async (input, output, command) => {
+    try {
+      const canonical = canonicalizeCallgraphCommand(command)
+      const lastPath = lastCommandPath(input, output)
+      const repeatPath = repeatCounterPath(input, output)
+
+      let previous = ""
+      try {
+        previous = (await fs.readFile(lastPath, "utf8")).trim()
+      } catch {
+        // File may not exist yet.
+      }
+
+      let repeatCount = 1
+      if (canonical.length > 0 && canonical === previous) {
+        repeatCount = (await readCounter(repeatPath)) + 1
+      }
+
+      await writeCounter(lastPath, canonical)
+      await writeCounter(repeatPath, repeatCount)
+      return repeatCount
+    } catch {
+      return 1
+    }
+  }
+
   return {
     "tool.execute.before": async (input, output) => {
       if (!isBashLike(input.tool)) return
@@ -226,6 +264,10 @@ export const CallGraphHooksPlugin = async () => {
       if (/^\s*callgraph\b/i.test(command)) {
         await markMainCallgraphUsage(input, output)
         await resetFailures(input, output)
+        const repeatCount = await recordCallgraphCommand(input, output, command)
+        if (repeatCount >= 2) {
+          warn(`Hint: identical CallGraph command repeated in this session (${repeatCount}x). Reuse previous evidence unless scope changed or prior output was inconclusive.`)
+        }
 
         if (/^\s*callgraph\s+get-method-source\b/i.test(command) && !/--mode(?:\s+|=)/i.test(command)) {
           warn("Hint: prefer callgraph get-method-source --mode body_only for token-efficient method reads.")

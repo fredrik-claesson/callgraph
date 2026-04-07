@@ -19,6 +19,7 @@ Use shell `rg`/`find`/`grep` only as a narrow fallback when:
 When spawning sub-agents for C# exploration, always include this instruction
 explicitly in the prompt: "Use CallGraph skills (callgraph-search-method,
 callgraph-list-methods, callgraph-analyze-callgraph, and callgraph-get-method-source before falling back to grep/rg/find."
+Also include a compact handoff packet (`goal | owned scope | known evidence IDs | unknowns | stop condition`) and prohibit raw output dumps.
 
 Command execution policy for CallGraph:
 - Always append `2>&1`.
@@ -85,3 +86,15 @@ collecting `method -> direct callees -> important awaits/state changes`.
 - Use Haiku subagents for bounded sidecar work (inventory/extraction), not final synthesis/tradeoff decisions.
 - Keep parallel subagents small and independent; default max 2 unless justified.
 - Reuse an existing subagent/thread for related follow-up questions instead of spawning a new one each time.
+
+## Token-Safe Context Protocol
+- Treat tool output as evidence, not prompt payload.
+- Maintain an evidence ledger with compact rows: `E<ID> | command | scope | key result | confidence`.
+- Never paste raw CallGraph tables or full method bodies into parent/subagent prompts unless explicitly requested.
+- For method-content evidence, quote only the smallest span needed and include `filePath:line`.
+- Before rerunning discovery, check whether an equivalent command already ran in this session.
+- Rerun only when scope changed or prior output was inconclusive, and state the one-line rerun reason.
+- Subagent handoffs must be delta-only: `goal | owned scope | known evidence (E-ids) | unknowns | stop condition`.
+- Subagents must return only net-new evidence rows, conflicts, and unresolved unknowns.
+- Keep parallel subagents disjoint by ownership (files/classes/method sets) to avoid duplicate reads.
+- Use compact checkpoint matrices: `file | method | finding | risk | confidence | evidence`.

@@ -53,6 +53,7 @@ Hook tuning (optional):
 - Copilot policy mode: `COPILOT_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
 - OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
 - Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`)
+- Hooks also emit hints when the same `callgraph` command is repeated in-session, to reduce duplicate read/context churn.
 
 Verify:
 
