@@ -31,6 +31,65 @@ export const CallGraphHooksPlugin = async () => {
     return match[1].replace(/^['\"]|['\"]$/g, "")
   }
 
+  const isGitCommitCommand = (command) => /(^|[;&|()\s])git\s+commit(\s|$)/i.test(command)
+
+  const extractGitSelfReviewDecision = (command) => {
+    const powershellMatch = command.match(/\$env:CALLGRAPH_GIT_SELF_REVIEW\s*=\s*['"]?([A-Za-z_]+)['"]?/i)
+    if (powershellMatch?.[1]) return powershellMatch[1].toLowerCase()
+
+    const shellMatch = command.match(/(?:^|[;\s])CALLGRAPH_GIT_SELF_REVIEW\s*=\s*['"]?([A-Za-z_]+)['"]?/i)
+    if (shellMatch?.[1]) return shellMatch[1].toLowerCase()
+
+    return ""
+  }
+
+  const gitCommitSelfReviewReason = `Before running git commit, ask the user if they want self-review.
+
+If user declines: rerun commit with CALLGRAPH_GIT_SELF_REVIEW=skip.
+If user accepts: describe intention/goal/purpose, run this PR2 deep-review workflow, and only then commit with CALLGRAPH_GIT_SELF_REVIEW=approved if review passes.
+
+PR2 workflow required:
+Phase 1 (context):
+- If user provides PR number/URL: use gh pr view/gh pr diff/gh pr checks exactly.
+- If no PR ref exists (pre-commit local mode): use git status --short, git diff --cached --name-only, git diff --name-only, git diff --cached, git diff; collect title/goal from the intention summary.
+- Read every changed file fully.
+
+Phase 2 (7 independent passes):
+1) Problem Resolution
+2) Coding Conventions & Rules
+3) Obsolete / Deprecated Code
+4) Test Coverage
+5) Race Conditions & Concurrency
+6) Performance
+7) Database Index Coverage
+
+For each pass, produce candidate findings with:
+id, category, title, location, evidence, hypothesis.
+
+Phase 3 (candidate list):
+- Print:
+  ## Candidate Findings (N total)
+  [id] [category] [title]
+        Location: [file:line]
+        Evidence: [quote or reference]
+
+Phase 4 (parallel validation):
+- Launch one independent sub-agent per finding in parallel.
+- Give each sub-agent full diff + finding details.
+- Sub-agent returns ONLY:
+  FINDING, VERDICT(valid|invalid|partial), IMPACT(critical|high|medium|low|informational), JUSTIFICATION(2-4 sentences), SUGGESTED FIX.
+
+Phase 5 (final report):
+- Produce:
+  # PR Review Report
+  Problem Resolution
+  Validated Findings (Critical/High/Medium/Low-Informational)
+  Discarded Findings
+  Summary & Recommendation (APPROVE | REQUEST CHANGES | NEEDS DISCUSSION)
+
+Commit is allowed only when review recommendation is APPROVE (no unresolved critical/high findings). Then run:
+CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
+
   const deny = (message) => {
     throw new Error(message)
   }
@@ -213,6 +272,13 @@ export const CallGraphHooksPlugin = async () => {
 
       let command = extractCommand(input, output)
       if (!command.trim()) return
+
+      if (isGitCommitCommand(command)) {
+        const selfReviewDecision = extractGitSelfReviewDecision(command)
+        if (selfReviewDecision === "approved" || selfReviewDecision === "skip") return
+
+        deny(gitCommitSelfReviewReason)
+      }
 
       const isSearchCommand = /\b(find|grep|rg|ls)\b/i.test(command)
       const targetsTests = /((^|[\\/_.-])tests?([\\/_.-]|$)|\.tests?\.csproj\b|[._-]tests?\b|\b(xunit|nunit|mstest)\b)/i.test(command)

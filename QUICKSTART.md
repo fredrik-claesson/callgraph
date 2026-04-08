@@ -54,6 +54,11 @@ Hook tuning (optional):
 - OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
 - Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`)
 - Hooks also emit hints when the same `callgraph` command is repeated in-session, to reduce duplicate read/context churn.
+- Hooks also gate `git commit` with a self-review decision marker:
+  - review approved path: `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
+  - user skipped review path: `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`
+  - PowerShell: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`)
+  - without marker, commit is blocked and the agent is instructed to run the PR2 deep-review workflow (7 review passes + parallel sub-agent validation + final recommendation) before approving commit.
 
 Verify:
 

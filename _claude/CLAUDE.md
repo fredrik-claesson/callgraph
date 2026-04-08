@@ -38,6 +38,21 @@ Command execution policy for CallGraph:
   1. map callers first with inbound + external depth 2,
   2. pick 1-3 candidates and run outbound + internal depth 2 per candidate.
 
+Git commit self-review policy:
+- `git commit` is hook-gated and requires explicit decision marker.
+- On first commit attempt (no marker), ask user whether self-review should run before commit.
+- If user wants self-review:
+  1. describe intention, goal, and purpose of the changes,
+  2. run PR2 deep review workflow:
+     - phase 1 context (PR with `gh pr ...` when available, else local pre-commit diffs),
+     - phase 2 seven independent review passes,
+     - phase 3 candidate findings list,
+     - phase 4 one parallel sub-agent per finding for validation,
+     - phase 5 final report with recommendation,
+  3. if recommendation is `APPROVE`, rerun commit with `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`.
+- If user declines self-review, rerun with `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`.
+- PowerShell marker format is supported: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`).
+
 ## Invocation Guardrails
 - Run one discovery command at a time. Do not submit parallel `callgraph`/shell discovery calls; a single failing sibling can cancel the whole batch.
 - If a command fails due to invalid/missing args, correct and rerun the same command sequentially before trying alternatives.

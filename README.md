@@ -85,6 +85,19 @@ Explicit hook hint feedback (hook-enabled CLIs):
   - repeating identical `callgraph` commands in the same session instead of reusing prior evidence
 - Claude and OpenCode hooks also auto-correct selected argument mistakes when safe (for example `--methodName` -> `--method` on `analyze`).
 
+Git commit self-review gate (hook-enabled CLIs):
+- Hooks intercept `git commit` and require an explicit self-review decision marker.
+- Default behavior on commit attempt: block and instruct the agent to ask the user whether to run self-review.
+- If user wants self-review, the agent must run the PR2 deep-review workflow:
+  - context loading (PR via `gh pr ...` when available; otherwise local pre-commit mode via `git status`/`git diff`)
+  - seven independent passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage)
+  - candidate findings list
+  - one parallel sub-agent per candidate finding for validation
+  - final report with recommendation (`APPROVE | REQUEST CHANGES | NEEDS DISCUSSION`)
+  - commit only when recommendation is `APPROVE`, then rerun with `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
+- If user declines self-review, rerun with `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`
+- PowerShell equivalent marker format is supported: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`).
+
 See [QUICKSTART.md](QUICKSTART.md) for more details.
 
 ## CLI Usage
