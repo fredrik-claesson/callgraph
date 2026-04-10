@@ -1,26 +1,55 @@
 # CallGraph CLI
 
-CallGraph is a local-first .NET CLI that indexes C# solutions with Roslyn into a SQLite database for fast call graph analysis, search, and diagnostics.
+CallGraph is a local-first .NET CLI that indexes C# solutions with Roslyn into a SQLite database, giving coding agents and developers fast, compiler-accurate call graph analysis, symbol search, and diagnostics — without scanning source files in prompts.
 
-## Purpose
+> **Indexing is required.** All analysis commands operate against a local index. Run `callgraph --index /path/to/solution.sln` once to bootstrap. After that, either reindex on demand with `callgraph --reindex` or keep a watcher running permanently with `callgraph --watch` to stay current automatically. See [QUICKSTART.md](QUICKSTART.md) to get up and running.
 
-CallGraph exists to improve coding-agent and developer workflows for C# codebases by:
+## Features
 
-- providing precise, local code intelligence (search, call graph analysis, diagnostics, and live method source extraction)
-- reducing token usage and response latency by replacing broad prompt-based code scanning with targeted local CLI queries
-- standardizing agent workflows across Claude, Codex, Cursor, Copilot CLI, and OpenCode with bundled skills/commands/hooks in `_claude`, `_codex`, `_cursor`, `_copilot`, and `_opencode`
-- shipping both the CLI runtime and the integration artifacts consumed by `callgraph install`
-- intentionally excluding test projects from index/search/analyze scope to keep production-code discovery fast and precise
+### Input Token Savings
 
-## Key Features
+| Feature | Data source | How it saves input tokens |
+|---|---|---|
+| **`search-file` / `search-method`** | Indexed | Returns matching paths/signatures directly — no directory scans or full-file reads needed to locate symbols |
+| **`list-methods`** | Indexed | Compact method inventory per file/class — agents don't need to `Read` the whole file to know what's in it |
+| **`get-method-source` (`body_only` mode)** | Hybrid — index provides spans, live file read retrieves content | Extracts just the method body by exact byte/line span — no need to read the entire file to get one method |
+| **`analyze` with `--depth` and `--visibility` controls** | Indexed | Limits graph traversal to what's relevant — agents don't receive the full call tree |
+| **Solution/folder/file scoping on all commands** | N/A | Narrows every query to the specific file or folder in scope, eliminating noise |
+| **PreToolUse hook** | N/A | Automatically rewrites shell searches (`find`, `rg`, `grep`) to targeted CallGraph commands before results reach the context window |
+| **Hard result limits (200 for search, 100 for diagnostics)** | N/A | Prevents large result floods from ever entering the context window |
 
-- Direct and interface-based dependency resolution using Roslyn Analyzer
-- Inbound/outbound/bi-directional call graph traversal
-- Indexed file and method search
-- Hybrid method search: soft OR lexical retrieval + soft AND lexical ranking, then top-N semantic rerank (local bge-small-en-v1.5)
-- Method listing with live signature refresh and external/internal visibility filter
-- Warning and unused diagnostics for projects
-- Incremental reindexing with file watching
+### Output Token Savings
+
+| Feature | Data source | How it saves output tokens |
+|---|---|---|
+| **Compact tab-delimited text format** | N/A | `M\t<id>\t<file:line>\t<type>\t<method>` rows are far more compact than equivalent JSON with repeated keys |
+| **`TotalCount` + `Truncated` flag** | N/A | Agent can acknowledge overflow in one line rather than listing all results or widening its search |
+| **Evidence ledger pattern (CLAUDE.md protocol)** | N/A | Instructs agents to record only key results per command rather than pasting raw tool output into follow-up prompts |
+| **`analyze` depth cap (`internal` ≤ 2)** | N/A | Forces two-stage analysis over one large dump — each stage output is smaller and more focused |
+| **Bundled skills in `_claude/skills/`** | N/A | Pre-defined invocation patterns reduce the agent's need to reason out command flags from scratch |
+
+### Improved Quality and Precision
+
+| Feature | Data source | Precision benefit |
+|---|---|---|
+| **Roslyn-based indexing** | Live AST (at index time) | Compiler-accurate symbol resolution — no false positives from text matching (e.g. method name collisions across types) |
+| **Method-level call graph with edge kinds** | Indexed | Precise caller/callee relationships at method granularity, not class or file level |
+| **Inbound / outbound / bi-directional analysis** | Indexed | Blast-radius analysis (inbound) vs. dependency tracing (outbound) without conflation |
+| **`list-unused` (compiler-accurate dead code)** | Live AST (at query time) | Uses Roslyn diagnostics, not heuristics — no false "unused" from reflection or interface implementations |
+| **`list-warnings`** | Live AST (at query time) | Surfaces compiler and analyzer diagnostics scoped to a file/project, not guessed from code structure |
+| **File path + line numbers on all results** | Indexed | Every result is directly navigable — no ambiguity about which overload or which file |
+| **Incremental reindex** | Indexed | Index stays synchronized with file changes — agents query current state, not stale snapshots |
+| **Git self-review gate (CLAUDE.md hook)** | N/A | Prevents premature commits by requiring an explicit PR2 review pass before `git commit` proceeds |
+| **Bundled IDE integration (`_claude`, `_copilot`, `_cursor`, `_codex`, `_opencode`)** | N/A | Standardizes agent workflows across toolchains, reducing per-agent prompt engineering drift |
+
+### Performance
+
+| Feature | Data source | Benefit |
+|---|---|---|
+| **Daemon mode (named pipe IPC)** | N/A | Persistent in-memory index with sub-millisecond query latency — no process startup cost per command |
+| **Incremental reindex** | Indexed | Only re-processes changed files on edit — avoids full solution reparse on each save |
+| **Test project exclusion** | N/A (policy applied at index time) | Skips test projects entirely during indexing — reduces index size and reindex time |
+| **SQLite-backed index store** | Indexed | Persistent on-disk index survives restarts without re-indexing the solution |
 
 ## Build & Install
 
