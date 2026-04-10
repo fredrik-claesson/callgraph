@@ -55,6 +55,9 @@ What `install` does:
   - Test-targeted shell searches are left as shell fallback (not rewritten), because test projects are excluded from index scope.
 - For Copilot CLI, installs reusable skills/agent assets in `~/.copilot` and prints a manual step for enabling hooks from repository `.github/hooks/*.json`.
 - For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` (including a plugin-based pre-tool hook policy in `plugins/callgraph-hooks.js`).
+- Includes bundled PR2 review assets:
+  - skills: `pr2-deep-pr-review` for Claude/Codex/Copilot/OpenCode
+  - commands: `/pr2-deep-pr-review` for Cursor/OpenCode
 - Installs `callgraph` command shim:
   - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
   - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
@@ -90,7 +93,7 @@ Git commit self-review gate (hook-enabled CLIs):
 - Default behavior on commit attempt: block and instruct the agent to ask the user whether to run self-review.
 - If user wants self-review, the agent must run the PR2 deep-review workflow:
   - context loading (PR via `gh pr ...` when available; otherwise local pre-commit mode via `git status`/`git diff`)
-  - seven independent passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage)
+  - eight explicit independent passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage, and future-flag readiness with OFF/ON test coverage)
   - candidate findings list
   - one parallel sub-agent per candidate finding for validation
   - final report with recommendation (`APPROVE | REQUEST CHANGES | NEEDS DISCUSSION`)

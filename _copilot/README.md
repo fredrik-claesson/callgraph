@@ -36,7 +36,7 @@ chmod +x ~/.copilot/hooks/callgraph-pretooluse.sh
 - On first commit attempt (no marker), the agent is instructed to ask user whether to run self-review.
 - If user wants self-review, workflow must follow PR2 deep review:
   - load context from PR (`gh pr ...`) when available, otherwise local pre-commit diffs
-  - run all seven review passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage)
+  - run all eight explicit review passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage, and feature-flag readiness with OFF/ON test coverage)
   - produce candidate findings
   - launch one parallel sub-agent per finding for validation
   - synthesize final report and recommendation
@@ -65,4 +65,10 @@ For scenario-driven investigation and planning playbooks, use:
 
 ```text
 Use the /callgraph-playbooks skill and apply the KnownComponentImpact scenario.
+```
+
+For deep pull request review with parallel sub-agent validation, use:
+
+```text
+Use the /pr2-deep-pr-review skill to review PR #1234
 ```

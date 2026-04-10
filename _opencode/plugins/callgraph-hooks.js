@@ -54,14 +54,32 @@ Phase 1 (context):
 - If no PR ref exists (pre-commit local mode): use git status --short, git diff --cached --name-only, git diff --name-only, git diff --cached, git diff; collect title/goal from the intention summary.
 - Read every changed file fully.
 
-Phase 2 (7 independent passes):
-1) Problem Resolution
-2) Coding Conventions & Rules
-3) Obsolete / Deprecated Code
-4) Test Coverage
-5) Race Conditions & Concurrency
-6) Performance
-7) Database Index Coverage
+Phase 2 (8 explicit independent passes):
+1) Problem Resolution:
+   - map each stated requirement to code changes
+   - flag missing/partial implementation
+   - flag non-goals changed unintentionally
+2) Coding Conventions & Rules:
+   - check naming, formatting/import ordering, file organization against surrounding code
+   - check project patterns (error handling/logging/DI) and consistency with similar code
+3) Obsolete / Deprecated Code:
+   - flag deprecated APIs/features
+   - flag migration-away patterns (TODO/FIXME/DEPRECATED hints)
+   - flag outdated syntax
+4) Test Coverage:
+   - verify changed behavior is tested
+   - identify missing branch/edge/error-path coverage
+   - mark infeasible test cases explicitly as "infeasible, not a finding"
+5) Race Conditions & Concurrency:
+   - shared mutable state, TOCTOU, async interleaving, missing lock/channel/atomic safety
+6) Performance:
+   - N+1/query-in-loop, recomputation, large allocations/copies, missing caching, O(n^2)+ risks
+7) Database Index Coverage:
+   - index coverage for WHERE/ORDER BY/JOIN columns
+   - full-scan risk, missing composite indexes, migration/index alignment
+8) Future Flag Readiness & Dual-Mode Test Coverage:
+   - assess whether a future feature flag is desirable
+   - validate tests for both regression with flag OFF and new behavior with flag ON
 
 For each pass, produce candidate findings with:
 id, category, title, location, evidence, hypothesis.

@@ -36,6 +36,9 @@ Installer behavior:
 - Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
 - For Copilot CLI, installs reusable assets in `~/.copilot` and prints a manual step for enabling repository hooks from `.github/hooks/*.json`.
 - For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` including plugin-based hook policy.
+- Bundles PR2 deep-review assets:
+  - skill: `pr2-deep-pr-review` (Claude/Codex/Copilot/OpenCode)
+  - command: `/pr2-deep-pr-review` (Cursor/OpenCode)
 - Installs `callgraph` shim:
   - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
   - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
@@ -58,7 +61,7 @@ Hook tuning (optional):
   - review approved path: `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
   - user skipped review path: `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`
   - PowerShell: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`)
-  - without marker, commit is blocked and the agent is instructed to run the PR2 deep-review workflow (7 review passes + parallel sub-agent validation + final recommendation) before approving commit.
+  - without marker, commit is blocked and the agent is instructed to run the PR2 deep-review workflow (8 explicit review passes + parallel sub-agent validation + final recommendation) before approving commit.
 
 Verify:
 

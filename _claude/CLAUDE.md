@@ -45,7 +45,7 @@ Git commit self-review policy:
   1. describe intention, goal, and purpose of the changes,
   2. run PR2 deep review workflow:
      - phase 1 context (PR with `gh pr ...` when available, else local pre-commit diffs),
-     - phase 2 seven independent review passes,
+     - phase 2 eight explicit review passes (including future-flag readiness and OFF/ON test coverage),
      - phase 3 candidate findings list,
      - phase 4 one parallel sub-agent per finding for validation,
      - phase 5 final report with recommendation,
