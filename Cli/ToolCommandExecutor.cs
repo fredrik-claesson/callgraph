@@ -107,7 +107,7 @@ internal sealed class ToolCommandExecutor
 
                 var pipeline = _services.GetRequiredService<IIndexingPipeline>();
                 var normalizedSolutionPath = normalizedPath.Path;
-                var solutionId = SolutionIdentity.FromPath(normalizedSolutionPath);
+                var solutionId = SolutionIdentity.FromPath(normalizedSolutionPath, slnOnly);
                 var request = new IndexJobRequest(
                     Guid.NewGuid().ToString("N"),
                     solutionId,

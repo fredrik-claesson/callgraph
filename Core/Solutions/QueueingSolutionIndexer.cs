@@ -28,7 +28,7 @@ public sealed class QueueingSolutionIndexer : ISolutionIndexer
         bool isReindex,
         CancellationToken cancellationToken)
     {
-        var solutionId = SolutionIdentity.FromPath(solutionPath);
+        var solutionId = SolutionIdentity.FromPath(solutionPath, slnOnly);
         var job = _jobStore.CreateJob(solutionId, "Queued");
         var request = new IndexJobRequest(job.JobId, solutionId, solutionPath, slnOnly, isReindex);
         var enqueue = await _queue.EnqueueAsync(request, cancellationToken).ConfigureAwait(false);

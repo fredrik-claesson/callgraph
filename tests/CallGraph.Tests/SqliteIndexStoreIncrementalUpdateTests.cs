@@ -233,6 +233,72 @@ public sealed class SqliteIndexStoreIncrementalUpdateTests
         }
     }
 
+    [Fact]
+    public async Task TryRestoreSnapshotAsync_RestoresSnapshotForTargetCommit()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"callgraph-sqlite-snapshot-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        var dbPath = Path.Combine(tempDir, "index.db");
+        var solutionPath = Path.Combine(tempDir, "Snapshot.sln");
+        var fileA = Path.Combine(tempDir, "A.cs");
+        var fileB = Path.Combine(tempDir, "B.cs");
+        File.WriteAllText(solutionPath, string.Empty);
+        File.WriteAllText(fileA, "namespace Demo; public class A { public void Run() {} }");
+        File.WriteAllText(fileB, "namespace Demo; public class B { public void Run() {} }");
+
+        try
+        {
+            var store = CreateStore(dbPath);
+            var solutionId = SolutionIdentity.FromPath(solutionPath);
+
+            await store.SaveAsync(
+                new SolutionIndex
+                {
+                    SolutionId = solutionId,
+                    SolutionPath = solutionPath,
+                    HeadCommit = "commit-a",
+                    IndexedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                    SlnOnly = true,
+                    Nodes = [CreateNode("Asm:Demo.A.Run()", fileA, "Demo.A", "A.Run()")],
+                    Edges = [],
+                    ProjectPaths = []
+                },
+                CancellationToken.None);
+
+            await store.SaveAsync(
+                new SolutionIndex
+                {
+                    SolutionId = solutionId,
+                    SolutionPath = solutionPath,
+                    HeadCommit = "commit-b",
+                    IndexedAtUtc = DateTime.UtcNow,
+                    SlnOnly = true,
+                    Nodes = [CreateNode("Asm:Demo.B.Run()", fileB, "Demo.B", "B.Run()")],
+                    Edges = [],
+                    ProjectPaths = []
+                },
+                CancellationToken.None);
+
+            var restored = await store.TryRestoreSnapshotAsync(solutionPath, "commit-a", CancellationToken.None);
+            Assert.True(restored);
+
+            var restoredCommit = await store.GetIndexedHeadCommitAsync(solutionPath, CancellationToken.None);
+            Assert.Equal("commit-a", restoredCommit);
+
+            var restoredIndex = await store.LoadAsync(solutionPath, CancellationToken.None);
+            Assert.NotNull(restoredIndex);
+            Assert.Contains(restoredIndex!.Nodes, node => node.Id == "Asm:Demo.A.Run()");
+            Assert.DoesNotContain(restoredIndex.Nodes, node => node.Id == "Asm:Demo.B.Run()");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     private static SqliteIndexStore CreateStore(string dbPath)
         => new(Options.Create(new IndexStoreOptions { DatabasePath = dbPath }));
 

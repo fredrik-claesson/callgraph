@@ -171,6 +171,17 @@ public sealed class IndexingPipeline : IIndexingPipeline
 
         if (string.IsNullOrWhiteSpace(indexedCommit))
             return IncrementalReindexResult.NotHandled("indexed git commit missing");
+        var indexedCommitValue = indexedCommit!;
+
+        var restoredSnapshot = false;
+        if (!string.Equals(indexedCommitValue, gitInfo.HeadCommit, StringComparison.Ordinal))
+        {
+            restoredSnapshot = await _indexStore
+                .TryRestoreSnapshotAsync(normalizedSolutionPath, gitInfo.HeadCommit!, cancellationToken)
+                .ConfigureAwait(false);
+            if (restoredSnapshot)
+                indexedCommitValue = gitInfo.HeadCommit!;
+        }
 
         var indexedFiles = await _indexStore.ListFilesAsync(normalizedSolutionPath, cancellationToken).ConfigureAwait(false);
         loadIndexedFilesMs = stageTimer.ElapsedMilliseconds;
@@ -184,10 +195,10 @@ public sealed class IndexingPipeline : IIndexingPipeline
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var changes = new List<GitPathChange>();
-        if (!string.Equals(indexedCommit, gitInfo.HeadCommit, StringComparison.Ordinal))
+        if (!restoredSnapshot && !string.Equals(indexedCommitValue, gitInfo.HeadCommit, StringComparison.Ordinal))
         {
             var commitChanges = await _gitRepositoryInspector
-                .GetCommitChangesAsync(gitInfo.RepositoryRoot, indexedCommit, gitInfo.HeadCommit!, cancellationToken)
+                .GetCommitChangesAsync(gitInfo.RepositoryRoot, indexedCommitValue, gitInfo.HeadCommit!, cancellationToken)
                 .ConfigureAwait(false);
             changes.AddRange(commitChanges);
         }
@@ -195,6 +206,7 @@ public sealed class IndexingPipeline : IIndexingPipeline
         var pendingChanges = await _gitRepositoryInspector
             .GetPendingChangesAsync(gitInfo.RepositoryRoot, cancellationToken)
             .ConfigureAwait(false);
+        var hasPendingChanges = pendingChanges.Count > 0;
         changes.AddRange(pendingChanges);
 
         var updates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -255,10 +267,17 @@ public sealed class IndexingPipeline : IIndexingPipeline
         var totalChanges = updates.Count + deletes.Count;
         if (totalChanges == 0)
         {
-            if (!string.Equals(indexedCommit, gitInfo.HeadCommit, StringComparison.Ordinal))
+            if (!string.Equals(indexedCommitValue, gitInfo.HeadCommit, StringComparison.Ordinal))
             {
                 await _indexStore
                     .UpdateSolutionMetadataAsync(normalizedSolutionPath, DateTime.UtcNow, gitInfo.HeadCommit, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!hasPendingChanges && !restoredSnapshot && !string.IsNullOrWhiteSpace(gitInfo.HeadCommit))
+            {
+                await _indexStore
+                    .SaveSnapshotAsync(normalizedSolutionPath, gitInfo.HeadCommit, cancellationToken)
                     .ConfigureAwait(false);
             }
 
@@ -345,6 +364,13 @@ public sealed class IndexingPipeline : IIndexingPipeline
         await _indexStore
             .UpdateSolutionMetadataAsync(normalizedSolutionPath, DateTime.UtcNow, gitInfo.HeadCommit, cancellationToken)
             .ConfigureAwait(false);
+
+        if (!hasPendingChanges && !string.IsNullOrWhiteSpace(gitInfo.HeadCommit))
+        {
+            await _indexStore
+                .SaveSnapshotAsync(normalizedSolutionPath, gitInfo.HeadCommit, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         totalTimer.Stop();
         LogIncrementalReindexTimings(

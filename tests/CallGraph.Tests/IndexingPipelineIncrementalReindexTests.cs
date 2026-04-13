@@ -185,6 +185,8 @@ public sealed class IndexingPipelineIncrementalReindexTests
             Assert.Empty(indexStore.RemoveFileCalls);
             Assert.Single(indexStore.MetadataUpdates);
             Assert.Equal("commit-new", indexStore.MetadataUpdates[0].HeadCommit);
+            Assert.Single(indexStore.SavedSnapshots);
+            Assert.Equal("commit-new", indexStore.SavedSnapshots[0]);
             Assert.False(indexStore.SaveCalled);
         }
         finally
@@ -258,7 +260,49 @@ public sealed class IndexingPipelineIncrementalReindexTests
             Assert.Empty(indexStore.RemoveFileCalls);
             Assert.Single(indexStore.MetadataUpdates);
             Assert.Equal("commit-new", indexStore.MetadataUpdates[0].HeadCommit);
+            Assert.Single(indexStore.SavedSnapshots);
+            Assert.Equal("commit-new", indexStore.SavedSnapshots[0]);
             Assert.False(indexStore.SaveCalled);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reindex_GitCommitSwitch_RestoresSnapshotWithoutDiffRebuild()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var solutionPath = CreateFile(tempDir, "test.sln", "Microsoft Visual Studio Solution File");
+            var codeFilePath = CreateFile(tempDir, "Foo.cs", "public class Foo { }");
+
+            var indexStore = new StubIndexStore(
+                indexedAtUtc: DateTime.UtcNow.AddMinutes(-10),
+                projectPaths: Array.Empty<string>(),
+                indexedFiles: new[] { new IndexedFileInfo(codeFilePath, DateTime.UtcNow.AddMinutes(-11)) },
+                indexedHeadCommit: "commit-old")
+            {
+                TryRestoreSnapshotResult = true
+            };
+
+            var gitInspector = new StubGitRepositoryInspector
+            {
+                RepositoryInfo = new GitRepositoryInfo(tempDir, Path.Combine(tempDir, ".git"), "commit-new")
+            };
+
+            var pipeline = CreatePipeline(indexStore, new StubFileIndexer(), gitInspector);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
+                CancellationToken.None);
+
+            Assert.Equal(1, indexStore.TryRestoreSnapshotCallCount);
+            Assert.Equal(0, gitInspector.CommitChangesCallCount);
+            Assert.Empty(indexStore.UpdateFileCalls);
+            Assert.Empty(indexStore.RemoveFileCalls);
         }
         finally
         {
@@ -331,6 +375,8 @@ public sealed class IndexingPipelineIncrementalReindexTests
 
         public List<GitPathChange> PendingChanges { get; } = new();
 
+        public int CommitChangesCallCount { get; private set; }
+
         public Task<GitRepositoryInfo?> TryGetRepositoryInfoAsync(string path, CancellationToken cancellationToken)
             => Task.FromResult(RepositoryInfo);
 
@@ -339,7 +385,10 @@ public sealed class IndexingPipelineIncrementalReindexTests
             string fromCommit,
             string toCommit,
             CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<GitPathChange>>(CommitChanges.ToList());
+        {
+            CommitChangesCallCount++;
+            return Task.FromResult<IReadOnlyList<GitPathChange>>(CommitChanges.ToList());
+        }
 
         public Task<IReadOnlyList<GitPathChange>> GetPendingChangesAsync(
             string repositoryRoot,
@@ -369,7 +418,10 @@ public sealed class IndexingPipelineIncrementalReindexTests
         public List<FileIndex> UpdateFileCalls { get; } = new();
         public List<string> RemoveFileCalls { get; } = new();
         public List<(DateTime IndexedAtUtc, string? HeadCommit)> MetadataUpdates { get; } = new();
+        public List<string> SavedSnapshots { get; } = new();
         public bool SaveCalled { get; private set; }
+        public bool TryRestoreSnapshotResult { get; set; }
+        public int TryRestoreSnapshotCallCount { get; private set; }
 
         public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task SaveAsync(SolutionIndex index, CancellationToken cancellationToken)
@@ -400,6 +452,18 @@ public sealed class IndexingPipelineIncrementalReindexTests
             CancellationToken cancellationToken)
         {
             MetadataUpdates.Add((indexedAtUtc, headCommit));
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> TryRestoreSnapshotAsync(string solutionPath, string headCommit, CancellationToken cancellationToken)
+        {
+            TryRestoreSnapshotCallCount++;
+            return Task.FromResult(TryRestoreSnapshotResult);
+        }
+
+        public Task SaveSnapshotAsync(string solutionPath, string headCommit, CancellationToken cancellationToken)
+        {
+            SavedSnapshots.Add(headCommit);
             return Task.CompletedTask;
         }
 

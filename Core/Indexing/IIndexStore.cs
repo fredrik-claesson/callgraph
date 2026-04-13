@@ -58,4 +58,16 @@ public interface IIndexStore
         string? headCommit,
         CancellationToken cancellationToken)
         => Task.CompletedTask;
+
+    Task<bool> TryRestoreSnapshotAsync(
+        string solutionPath,
+        string headCommit,
+        CancellationToken cancellationToken)
+        => Task.FromResult(false);
+
+    Task SaveSnapshotAsync(
+        string solutionPath,
+        string headCommit,
+        CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
