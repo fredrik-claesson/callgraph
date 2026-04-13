@@ -57,7 +57,15 @@ public sealed class SqliteIndexStore : IIndexStore
         await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = conn.BeginTransaction();
 
-        await UpsertSolutionAsync(conn, transaction, solutionId, storedSolutionPath, indexedAt, index.SlnOnly, cancellationToken)
+        await UpsertSolutionAsync(
+                conn,
+                transaction,
+                solutionId,
+                storedSolutionPath,
+                indexedAt,
+                index.HeadCommit,
+                index.SlnOnly,
+                cancellationToken)
             .ConfigureAwait(false);
 
         await ExecuteNonQueryAsync(conn, transaction, "DELETE FROM Methods WHERE SolutionId = $id", cancellationToken,
@@ -95,6 +103,7 @@ public sealed class SqliteIndexStore : IIndexStore
             SolutionId = solution.SolutionId,
             SolutionPath = ToRuntimePath(solution.SolutionPath),
             IndexedAtUtc = solution.IndexedAtUtc,
+            HeadCommit = solution.HeadCommit,
             SlnOnly = solution.SlnOnly,
             Nodes = nodes,
             Edges = edges
@@ -156,6 +165,23 @@ public sealed class SqliteIndexStore : IIndexStore
             return null;
 
         return DateTime.Parse(result.ToString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+    }
+
+    public async Task<string?> GetIndexedHeadCommitAsync(string solutionPath, CancellationToken cancellationToken)
+    {
+        var pathCandidates = GetPathCandidates(solutionPath);
+
+        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT HeadCommit FROM Solutions WHERE Path = $path1 OR Path = $path2";
+        cmd.Parameters.AddWithValue("$path1", pathCandidates.AbsolutePath);
+        cmd.Parameters.AddWithValue("$path2", pathCandidates.StoredPath);
+
+        var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (result is null || result is DBNull)
+            return null;
+
+        return result as string;
     }
 
     public async Task<SolutionInfo?> GetSolutionByIdAsync(string solutionId, CancellationToken cancellationToken)
@@ -675,7 +701,7 @@ public sealed class SqliteIndexStore : IIndexStore
         await InsertEdgesAsync(conn, transaction, solutionId, update.Edges, cancellationToken).ConfigureAwait(false);
         await UpsertFileAsync(conn, transaction, solutionId, storedFilePath, fileUpdatedAtUtc, cancellationToken)
             .ConfigureAwait(false);
-        await UpdateSolutionTimestampAsync(conn, transaction, solutionId, DateTime.UtcNow, cancellationToken)
+        await UpdateSolutionSnapshotAsync(conn, transaction, solutionId, DateTime.UtcNow, null, cancellationToken)
             .ConfigureAwait(false);
 
         transaction.Commit();
@@ -706,9 +732,28 @@ public sealed class SqliteIndexStore : IIndexStore
             cancellationToken,
             ("$id", solutionId),
             ("$file", storedFilePath)).ConfigureAwait(false);
-        await UpdateSolutionTimestampAsync(conn, transaction, solutionId, DateTime.UtcNow, cancellationToken)
+        await UpdateSolutionSnapshotAsync(conn, transaction, solutionId, DateTime.UtcNow, null, cancellationToken)
             .ConfigureAwait(false);
 
+        transaction.Commit();
+    }
+
+    public async Task UpdateSolutionMetadataAsync(
+        string solutionPath,
+        DateTime indexedAtUtc,
+        string? headCommit,
+        CancellationToken cancellationToken)
+    {
+        var pathCandidates = GetPathCandidates(solutionPath);
+
+        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var solutionId = await ResolveSolutionIdAsync(conn, pathCandidates, cancellationToken).ConfigureAwait(false);
+        if (solutionId is null)
+            return;
+
+        await using var transaction = conn.BeginTransaction();
+        await UpdateSolutionSnapshotAsync(conn, transaction, solutionId, indexedAtUtc, headCommit, cancellationToken)
+            .ConfigureAwait(false);
         transaction.Commit();
     }
 
@@ -742,6 +787,7 @@ public sealed class SqliteIndexStore : IIndexStore
                   Id TEXT PRIMARY KEY,
                   Path TEXT NOT NULL UNIQUE,
                   IndexedAtUtc TEXT NOT NULL,
+                  HeadCommit TEXT,
                   SlnOnly INTEGER NOT NULL DEFAULT 1
                 );
                 CREATE TABLE IF NOT EXISTS Projects (
@@ -791,6 +837,7 @@ public sealed class SqliteIndexStore : IIndexStore
 
             await EnsureColumnAsync(conn, "Solutions", "SlnOnly", "INTEGER NOT NULL DEFAULT 1", cancellationToken)
                 .ConfigureAwait(false);
+            await EnsureColumnAsync(conn, "Solutions", "HeadCommit", "TEXT", cancellationToken).ConfigureAwait(false);
             await EnsureColumnAsync(conn, "Files", "ReversePath", "TEXT", cancellationToken).ConfigureAwait(false);
             await EnsureColumnAsync(conn, "Methods", "Accessibility", "TEXT", cancellationToken).ConfigureAwait(false);
             await EnsureIndexAsync(conn, "IX_Files_ReversePath", "Files", "ReversePath", cancellationToken)
@@ -846,20 +893,22 @@ public sealed class SqliteIndexStore : IIndexStore
         string solutionId,
         string solutionPath,
         DateTime indexedAtUtc,
+        string? headCommit,
         bool slnOnly,
         CancellationToken cancellationToken)
     {
         var cmd = conn.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText = """
-            INSERT INTO Solutions (Id, Path, IndexedAtUtc, SlnOnly)
-            VALUES ($id, $path, $indexedAt, $slnOnly)
+            INSERT INTO Solutions (Id, Path, IndexedAtUtc, HeadCommit, SlnOnly)
+            VALUES ($id, $path, $indexedAt, $headCommit, $slnOnly)
             ON CONFLICT(Id)
-            DO UPDATE SET Path = $path, IndexedAtUtc = $indexedAt, SlnOnly = $slnOnly;
+            DO UPDATE SET Path = $path, IndexedAtUtc = $indexedAt, HeadCommit = $headCommit, SlnOnly = $slnOnly;
             """;
         cmd.Parameters.AddWithValue("$id", solutionId);
         cmd.Parameters.AddWithValue("$path", solutionPath);
         cmd.Parameters.AddWithValue("$indexedAt", indexedAtUtc.ToString(DateFormat, CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$headCommit", (object?)headCommit ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$slnOnly", slnOnly ? 1 : 0);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1034,17 +1083,19 @@ public sealed class SqliteIndexStore : IIndexStore
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task UpdateSolutionTimestampAsync(
+    private static async Task UpdateSolutionSnapshotAsync(
         SqliteConnection conn,
         SqliteTransaction transaction,
         string solutionId,
         DateTime updatedAtUtc,
+        string? headCommit,
         CancellationToken cancellationToken)
     {
         await ExecuteNonQueryAsync(conn, transaction,
-            "UPDATE Solutions SET IndexedAtUtc = $indexedAt WHERE Id = $id",
+            "UPDATE Solutions SET IndexedAtUtc = $indexedAt, HeadCommit = COALESCE($headCommit, HeadCommit) WHERE Id = $id",
             cancellationToken,
             ("$indexedAt", updatedAtUtc.ToString(DateFormat, CultureInfo.InvariantCulture)),
+            ("$headCommit", (object?)headCommit ?? DBNull.Value),
             ("$id", solutionId)).ConfigureAwait(false);
     }
 
@@ -1236,7 +1287,7 @@ public sealed class SqliteIndexStore : IIndexStore
     {
         var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT Id, Path, IndexedAtUtc, SlnOnly
+            SELECT Id, Path, IndexedAtUtc, HeadCommit, SlnOnly
             FROM Solutions
             WHERE Path = $pathAbs OR Path = $pathStored
             """;
@@ -1250,10 +1301,11 @@ public sealed class SqliteIndexStore : IIndexStore
         var id = reader.GetString(0);
         var path = reader.GetString(1);
         var indexedAtRaw = reader.GetString(2);
+        var headCommit = reader.IsDBNull(3) ? null : reader.GetString(3);
         var indexedAt = DateTime.Parse(indexedAtRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-        var slnOnly = !reader.IsDBNull(3) && reader.GetInt32(3) != 0;
+        var slnOnly = !reader.IsDBNull(4) && reader.GetInt32(4) != 0;
 
-        return new SolutionRow(id, path, indexedAt, slnOnly);
+        return new SolutionRow(id, path, indexedAt, headCommit, slnOnly);
     }
 
     private static async Task<List<Node>> LoadNodesAsync(
@@ -1450,5 +1502,10 @@ public sealed class SqliteIndexStore : IIndexStore
 
     private sealed record PathCandidates(string AbsolutePath, string StoredPath);
 
-    private sealed record SolutionRow(string SolutionId, string SolutionPath, DateTime IndexedAtUtc, bool SlnOnly);
+    private sealed record SolutionRow(
+        string SolutionId,
+        string SolutionPath,
+        DateTime IndexedAtUtc,
+        string? HeadCommit,
+        bool SlnOnly);
 }

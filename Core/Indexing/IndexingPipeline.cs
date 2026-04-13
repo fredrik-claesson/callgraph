@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CallGraph.Core.Analysis;
+using CallGraph.Core.Git;
 using CallGraph.Core.Projects;
 using CallGraph.Core.Solutions;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public sealed class IndexingPipeline : IIndexingPipeline
     private readonly IFileIndexer _fileIndexer;
     private readonly IGraphBuilder _graphBuilder;
     private readonly IIndexStore _indexStore;
+    private readonly IGitRepositoryInspector _gitRepositoryInspector;
     private readonly ILogger<IndexingPipeline> _logger;
 
     public IndexingPipeline(
@@ -26,12 +28,32 @@ public sealed class IndexingPipeline : IIndexingPipeline
         IGraphBuilder graphBuilder,
         IIndexStore indexStore,
         ILogger<IndexingPipeline> logger)
+        : this(
+            solutionLoader,
+            projectIndexer,
+            fileIndexer,
+            graphBuilder,
+            indexStore,
+            new GitRepositoryInspector(),
+            logger)
+    {
+    }
+
+    public IndexingPipeline(
+        ISolutionLoader solutionLoader,
+        IProjectIndexer projectIndexer,
+        IFileIndexer fileIndexer,
+        IGraphBuilder graphBuilder,
+        IIndexStore indexStore,
+        IGitRepositoryInspector gitRepositoryInspector,
+        ILogger<IndexingPipeline> logger)
     {
         _solutionLoader = solutionLoader;
         _projectIndexer = projectIndexer;
         _fileIndexer = fileIndexer;
         _graphBuilder = graphBuilder;
         _indexStore = indexStore;
+        _gitRepositoryInspector = gitRepositoryInspector;
         _logger = logger;
     }
 
@@ -60,6 +82,10 @@ public sealed class IndexingPipeline : IIndexingPipeline
         var totalTimer = Stopwatch.StartNew();
         var stageTimer = Stopwatch.StartNew();
 
+        var gitInfo = await _gitRepositoryInspector
+            .TryGetRepositoryInfoAsync(request.SolutionPath, cancellationToken)
+            .ConfigureAwait(false);
+
         await using var context = await _solutionLoader
             .LoadAsync(request.SolutionPath, request.SlnOnly, cancellationToken)
             .ConfigureAwait(false);
@@ -71,6 +97,7 @@ public sealed class IndexingPipeline : IIndexingPipeline
         stageTimer.Restart();
 
         var index = _graphBuilder.BuildIndex(request.SolutionId, request.SolutionPath, session, request.SlnOnly);
+        index.HeadCommit = gitInfo?.HeadCommit;
         var buildMs = stageTimer.ElapsedMilliseconds;
         stageTimer.Restart();
 
@@ -92,6 +119,26 @@ public sealed class IndexingPipeline : IIndexingPipeline
         IndexJobRequest request,
         CancellationToken cancellationToken)
     {
+        var normalizedSolutionPath = Path.GetFullPath(request.SolutionPath);
+
+        var gitInfo = await _gitRepositoryInspector
+            .TryGetRepositoryInfoAsync(normalizedSolutionPath, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (gitInfo is not null && !string.IsNullOrWhiteSpace(gitInfo.HeadCommit))
+            return await TryRunGitIncrementalReindexAsync(request, normalizedSolutionPath, gitInfo, cancellationToken)
+                .ConfigureAwait(false);
+
+        return await TryRunTimestampIncrementalReindexAsync(request, normalizedSolutionPath, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<IncrementalReindexResult> TryRunGitIncrementalReindexAsync(
+        IndexJobRequest request,
+        string normalizedSolutionPath,
+        GitRepositoryInfo gitInfo,
+        CancellationToken cancellationToken)
+    {
         var totalTimer = Stopwatch.StartNew();
         var stageTimer = Stopwatch.StartNew();
 
@@ -107,7 +154,240 @@ public sealed class IndexingPipeline : IIndexingPipeline
         long applyUpdatedFilesMs = 0;
         long removeStaleFilesMs = 0;
 
-        var normalizedSolutionPath = Path.GetFullPath(request.SolutionPath);
+        var indexedAtUtc = await _indexStore
+            .GetIndexedAtUtcAsync(normalizedSolutionPath, cancellationToken)
+            .ConfigureAwait(false);
+        loadIndexedAtMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        if (indexedAtUtc is null)
+            return IncrementalReindexResult.NotHandled("solution is not indexed yet");
+
+        var indexedCommit = await _indexStore
+            .GetIndexedHeadCommitAsync(normalizedSolutionPath, cancellationToken)
+            .ConfigureAwait(false);
+        checkSolutionMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        if (string.IsNullOrWhiteSpace(indexedCommit))
+            return IncrementalReindexResult.NotHandled("indexed git commit missing");
+
+        var indexedFiles = await _indexStore.ListFilesAsync(normalizedSolutionPath, cancellationToken).ConfigureAwait(false);
+        loadIndexedFilesMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        if (indexedFiles.Count == 0)
+            return IncrementalReindexResult.NotHandled("no indexed files found");
+
+        var indexedFilePaths = indexedFiles
+            .Select(file => Path.GetFullPath(file.FilePath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var changes = new List<GitPathChange>();
+        if (!string.Equals(indexedCommit, gitInfo.HeadCommit, StringComparison.Ordinal))
+        {
+            var commitChanges = await _gitRepositoryInspector
+                .GetCommitChangesAsync(gitInfo.RepositoryRoot, indexedCommit, gitInfo.HeadCommit!, cancellationToken)
+                .ConfigureAwait(false);
+            changes.AddRange(commitChanges);
+        }
+
+        var pendingChanges = await _gitRepositoryInspector
+            .GetPendingChangesAsync(gitInfo.RepositoryRoot, cancellationToken)
+            .ConfigureAwait(false);
+        changes.AddRange(pendingChanges);
+
+        var updates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deletes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var discoveredNewFiles = 0;
+
+        foreach (var change in changes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var normalizedPath = NormalizeGitRelativePath(change.Path);
+            if (IsMetadataChange(normalizedPath))
+                return IncrementalReindexResult.NotHandled($"metadata changed: {normalizedPath}");
+
+            if (!IsRelevantCodePath(normalizedPath))
+                continue;
+
+            if (change.Kind is GitPathChangeKind.Renamed or GitPathChangeKind.Copied)
+            {
+                if (!string.IsNullOrWhiteSpace(change.OldPath) && change.Kind == GitPathChangeKind.Renamed)
+                {
+                    var oldAbsolute = ToAbsolutePath(gitInfo.RepositoryRoot, change.OldPath);
+                    deletes.Add(oldAbsolute);
+                    updates.Remove(oldAbsolute);
+                }
+
+                var renamedAbsolute = ToAbsolutePath(gitInfo.RepositoryRoot, change.Path);
+                if (!deletes.Contains(renamedAbsolute))
+                    updates.Add(renamedAbsolute);
+
+                continue;
+            }
+
+            var absolutePath = ToAbsolutePath(gitInfo.RepositoryRoot, change.Path);
+            if (change.Kind == GitPathChangeKind.Deleted)
+            {
+                deletes.Add(absolutePath);
+                updates.Remove(absolutePath);
+                continue;
+            }
+
+            if (!deletes.Contains(absolutePath))
+                updates.Add(absolutePath);
+
+            if ((change.Kind == GitPathChangeKind.Untracked || change.Kind == GitPathChangeKind.Added)
+                && !indexedFilePaths.Contains(absolutePath))
+            {
+                discoveredNewFiles++;
+            }
+        }
+
+        detectChangesMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        discoverNewFilesMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        var totalChanges = updates.Count + deletes.Count;
+        if (totalChanges == 0)
+        {
+            if (!string.Equals(indexedCommit, gitInfo.HeadCommit, StringComparison.Ordinal))
+            {
+                await _indexStore
+                    .UpdateSolutionMetadataAsync(normalizedSolutionPath, DateTime.UtcNow, gitInfo.HeadCommit, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            totalTimer.Stop();
+            LogIncrementalReindexTimings(
+                request.SolutionPath,
+                indexedFiles.Count,
+                updates.Count,
+                deletes.Count,
+                discoveredNewFiles,
+                loadIndexedAtMs,
+                checkSolutionMs,
+                loadProjectPathsMs,
+                checkProjectFilesMs,
+                loadIndexedFilesMs,
+                detectChangesMs,
+                discoverNewFilesMs,
+                removeDeletedMs,
+                indexUpdatedFilesMs,
+                applyUpdatedFilesMs,
+                removeStaleFilesMs,
+                totalTimer.ElapsedMilliseconds);
+            return IncrementalReindexResult.Succeeded(0, 0, discoveredNewFiles);
+        }
+
+        var fullReindexThreshold = Math.Max(
+            MinIncrementalFallbackThreshold,
+            indexedFiles.Count / IncrementalFallbackRatioDivisor);
+
+        if (totalChanges > fullReindexThreshold)
+        {
+            return IncrementalReindexResult.NotHandled(
+                $"change set too large ({totalChanges}/{indexedFiles.Count})");
+        }
+
+        var removedCount = 0;
+        foreach (var deletedFile in deletes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _indexStore.RemoveFileAsync(normalizedSolutionPath, deletedFile, cancellationToken).ConfigureAwait(false);
+            removedCount++;
+        }
+
+        removeDeletedMs = stageTimer.ElapsedMilliseconds;
+        stageTimer.Restart();
+
+        var updatedCount = 0;
+        if (updates.Count > 0)
+        {
+            var updatePaths = updates.ToList();
+            var fileUpdates = await _fileIndexer
+                .IndexFilesAsync(normalizedSolutionPath, updatePaths, request.SlnOnly, cancellationToken)
+                .ConfigureAwait(false);
+            indexUpdatedFilesMs = stageTimer.ElapsedMilliseconds;
+            stageTimer.Restart();
+
+            foreach (var fileUpdate in fileUpdates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await _indexStore.UpdateFileAsync(normalizedSolutionPath, fileUpdate, cancellationToken).ConfigureAwait(false);
+                updatedCount++;
+            }
+
+            applyUpdatedFilesMs = stageTimer.ElapsedMilliseconds;
+            stageTimer.Restart();
+
+            var updatedPaths = fileUpdates
+                .Select(update => Path.GetFullPath(update.FilePath))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var staleIndexedFiles = updatePaths
+                .Where(path => indexedFilePaths.Contains(path) && !updatedPaths.Contains(path))
+                .ToList();
+
+            foreach (var staleFile in staleIndexedFiles)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await _indexStore.RemoveFileAsync(normalizedSolutionPath, staleFile, cancellationToken).ConfigureAwait(false);
+                removedCount++;
+            }
+
+            removeStaleFilesMs = stageTimer.ElapsedMilliseconds;
+        }
+
+        await _indexStore
+            .UpdateSolutionMetadataAsync(normalizedSolutionPath, DateTime.UtcNow, gitInfo.HeadCommit, cancellationToken)
+            .ConfigureAwait(false);
+
+        totalTimer.Stop();
+        LogIncrementalReindexTimings(
+            request.SolutionPath,
+            indexedFiles.Count,
+            updates.Count,
+            deletes.Count,
+            discoveredNewFiles,
+            loadIndexedAtMs,
+            checkSolutionMs,
+            loadProjectPathsMs,
+            checkProjectFilesMs,
+            loadIndexedFilesMs,
+            detectChangesMs,
+            discoverNewFilesMs,
+            removeDeletedMs,
+            indexUpdatedFilesMs,
+            applyUpdatedFilesMs,
+            removeStaleFilesMs,
+            totalTimer.ElapsedMilliseconds);
+
+        return IncrementalReindexResult.Succeeded(updatedCount, removedCount, discoveredNewFiles);
+    }
+
+    private async Task<IncrementalReindexResult> TryRunTimestampIncrementalReindexAsync(
+        IndexJobRequest request,
+        string normalizedSolutionPath,
+        CancellationToken cancellationToken)
+    {
+        var totalTimer = Stopwatch.StartNew();
+        var stageTimer = Stopwatch.StartNew();
+
+        long loadIndexedAtMs = 0;
+        long checkSolutionMs = 0;
+        long loadProjectPathsMs = 0;
+        long checkProjectFilesMs = 0;
+        long loadIndexedFilesMs = 0;
+        long detectChangesMs = 0;
+        long discoverNewFilesMs = 0;
+        long removeDeletedMs = 0;
+        long indexUpdatedFilesMs = 0;
+        long applyUpdatedFilesMs = 0;
+        long removeStaleFilesMs = 0;
 
         var indexedAtUtc = await _indexStore
             .GetIndexedAtUtcAsync(normalizedSolutionPath, cancellationToken)
@@ -402,6 +682,29 @@ public sealed class IndexingPipeline : IIndexingPipeline
                || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase)
                || normalized.Contains("/.git/", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsRelevantCodePath(string path)
+        => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && !ShouldIgnorePath(path);
+
+    private static bool IsMetadataChange(string path)
+    {
+        if (path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("Directory.Build.props", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("Directory.Build.targets", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("global.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeGitRelativePath(string relativePath)
+        => relativePath.Replace('\\', '/').TrimStart('.', '/');
+
+    private static string ToAbsolutePath(string repoRoot, string relativePath)
+        => Path.GetFullPath(Path.Combine(repoRoot, NormalizeGitRelativePath(relativePath).Replace('/', Path.DirectorySeparatorChar)));
 
     private sealed record IncrementalReindexResult(
         bool Handled,

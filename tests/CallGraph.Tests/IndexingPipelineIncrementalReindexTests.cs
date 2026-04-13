@@ -1,5 +1,6 @@
 using CallGraph.Contracts;
 using CallGraph.Core.Analysis;
+using CallGraph.Core.Git;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
 using CallGraph.Core.Solutions;
@@ -29,7 +30,7 @@ public sealed class IndexingPipelineIncrementalReindexTests
                 projectPaths: new[] { projectPath },
                 indexedFiles: new[] { new IndexedFileInfo(codeFilePath, currentWriteUtc) });
 
-            var pipeline = CreatePipeline(indexStore, new StubFileIndexer());
+            var pipeline = CreatePipeline(indexStore, new StubFileIndexer(), new StubGitRepositoryInspector());
 
             await pipeline.RunAsync(
                 new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
@@ -83,7 +84,7 @@ public sealed class IndexingPipelineIncrementalReindexTests
                 Edges = new List<Edge>()
             };
 
-            var pipeline = CreatePipeline(indexStore, fileIndexer);
+            var pipeline = CreatePipeline(indexStore, fileIndexer, new StubGitRepositoryInspector());
 
             await pipeline.RunAsync(
                 new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
@@ -128,7 +129,7 @@ public sealed class IndexingPipelineIncrementalReindexTests
                 projectPaths: new[] { projectPath },
                 indexedFiles: new[] { new IndexedFileInfo(indexedFilePath, oldWriteUtc) });
 
-            var pipeline = CreatePipeline(indexStore, new StubFileIndexer());
+            var pipeline = CreatePipeline(indexStore, new StubFileIndexer(), new StubGitRepositoryInspector());
 
             await pipeline.RunAsync(
                 new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
@@ -144,13 +145,138 @@ public sealed class IndexingPipelineIncrementalReindexTests
         }
     }
 
-    private static IndexingPipeline CreatePipeline(StubIndexStore indexStore, StubFileIndexer fileIndexer)
+    [Fact]
+    public async Task Reindex_GitCommitDiff_UsesIncrementalUpdateAndUpdatesMetadata()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var solutionPath = CreateFile(tempDir, "test.sln", "Microsoft Visual Studio Solution File");
+            var codeFilePath = CreateFile(tempDir, "Foo.cs", "public class Foo { }");
+            var indexedAtUtc = DateTime.UtcNow.AddMinutes(-10);
+
+            var indexStore = new StubIndexStore(
+                indexedAtUtc: indexedAtUtc,
+                projectPaths: Array.Empty<string>(),
+                indexedFiles: new[] { new IndexedFileInfo(codeFilePath, indexedAtUtc.AddMinutes(-1)) },
+                indexedHeadCommit: "commit-old");
+
+            var fileIndexer = new StubFileIndexer();
+            fileIndexer.IndexedResults[Path.GetFullPath(codeFilePath)] = new FileIndex
+            {
+                FilePath = codeFilePath,
+                Nodes = [new Node { Id = "M:Foo.Bar()", Kind = "method", Display = "Foo.Bar()", FilePath = codeFilePath }],
+                Edges = []
+            };
+
+            var gitInspector = new StubGitRepositoryInspector
+            {
+                RepositoryInfo = new GitRepositoryInfo(tempDir, Path.Combine(tempDir, ".git"), "commit-new")
+            };
+            gitInspector.CommitChanges.Add(new GitPathChange("Foo.cs", GitPathChangeKind.Modified));
+
+            var pipeline = CreatePipeline(indexStore, fileIndexer, gitInspector);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
+                CancellationToken.None);
+
+            Assert.Single(indexStore.UpdateFileCalls);
+            Assert.Empty(indexStore.RemoveFileCalls);
+            Assert.Single(indexStore.MetadataUpdates);
+            Assert.Equal("commit-new", indexStore.MetadataUpdates[0].HeadCommit);
+            Assert.False(indexStore.SaveCalled);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reindex_GitMetadataChange_FallsBackToFullIndex()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var solutionPath = CreateFile(tempDir, "test.sln", "Microsoft Visual Studio Solution File");
+            var codeFilePath = CreateFile(tempDir, "Foo.cs", "public class Foo { }");
+
+            var indexStore = new StubIndexStore(
+                indexedAtUtc: DateTime.UtcNow.AddMinutes(-10),
+                projectPaths: Array.Empty<string>(),
+                indexedFiles: new[] { new IndexedFileInfo(codeFilePath, DateTime.UtcNow.AddMinutes(-11)) },
+                indexedHeadCommit: "commit-old");
+
+            var gitInspector = new StubGitRepositoryInspector
+            {
+                RepositoryInfo = new GitRepositoryInfo(tempDir, Path.Combine(tempDir, ".git"), "commit-new")
+            };
+            gitInspector.CommitChanges.Add(new GitPathChange("test.csproj", GitPathChangeKind.Modified));
+
+            var pipeline = CreatePipeline(indexStore, new StubFileIndexer(), gitInspector);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await pipeline.RunAsync(
+                    new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
+                    CancellationToken.None));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reindex_GitCommitSwitchWithoutCodeChanges_OnlyUpdatesMetadata()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var solutionPath = CreateFile(tempDir, "test.sln", "Microsoft Visual Studio Solution File");
+            var codeFilePath = CreateFile(tempDir, "Foo.cs", "public class Foo { }");
+
+            var indexStore = new StubIndexStore(
+                indexedAtUtc: DateTime.UtcNow.AddMinutes(-10),
+                projectPaths: Array.Empty<string>(),
+                indexedFiles: new[] { new IndexedFileInfo(codeFilePath, DateTime.UtcNow.AddMinutes(-11)) },
+                indexedHeadCommit: "commit-old");
+
+            var gitInspector = new StubGitRepositoryInspector
+            {
+                RepositoryInfo = new GitRepositoryInfo(tempDir, Path.Combine(tempDir, ".git"), "commit-new")
+            };
+            gitInspector.CommitChanges.Add(new GitPathChange("README.md", GitPathChangeKind.Modified));
+
+            var pipeline = CreatePipeline(indexStore, new StubFileIndexer(), gitInspector);
+
+            await pipeline.RunAsync(
+                new IndexJobRequest("job-1", "solution-1", solutionPath, true, IsReindex: true),
+                CancellationToken.None);
+
+            Assert.Empty(indexStore.UpdateFileCalls);
+            Assert.Empty(indexStore.RemoveFileCalls);
+            Assert.Single(indexStore.MetadataUpdates);
+            Assert.Equal("commit-new", indexStore.MetadataUpdates[0].HeadCommit);
+            Assert.False(indexStore.SaveCalled);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private static IndexingPipeline CreatePipeline(
+        StubIndexStore indexStore,
+        StubFileIndexer fileIndexer,
+        StubGitRepositoryInspector gitRepositoryInspector)
         => new(
             new ThrowingSolutionLoader(),
             new ThrowingProjectIndexer(),
             fileIndexer,
             new ThrowingGraphBuilder(),
             indexStore,
+            gitRepositoryInspector,
             NullLogger<IndexingPipeline>.Instance);
 
     private static string CreateTempDir()
@@ -197,24 +323,52 @@ public sealed class IndexingPipelineIncrementalReindexTests
         }
     }
 
+    private sealed class StubGitRepositoryInspector : IGitRepositoryInspector
+    {
+        public GitRepositoryInfo? RepositoryInfo { get; set; }
+
+        public List<GitPathChange> CommitChanges { get; } = new();
+
+        public List<GitPathChange> PendingChanges { get; } = new();
+
+        public Task<GitRepositoryInfo?> TryGetRepositoryInfoAsync(string path, CancellationToken cancellationToken)
+            => Task.FromResult(RepositoryInfo);
+
+        public Task<IReadOnlyList<GitPathChange>> GetCommitChangesAsync(
+            string repositoryRoot,
+            string fromCommit,
+            string toCommit,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GitPathChange>>(CommitChanges.ToList());
+
+        public Task<IReadOnlyList<GitPathChange>> GetPendingChangesAsync(
+            string repositoryRoot,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GitPathChange>>(PendingChanges.ToList());
+    }
+
     private sealed class StubIndexStore : IIndexStore
     {
         private readonly DateTime _indexedAtUtc;
         private readonly IReadOnlyList<string> _projectPaths;
         private readonly IReadOnlyList<IndexedFileInfo> _indexedFiles;
+        private readonly string? _indexedHeadCommit;
 
         public StubIndexStore(
             DateTime indexedAtUtc,
             IReadOnlyList<string> projectPaths,
-            IReadOnlyList<IndexedFileInfo> indexedFiles)
+            IReadOnlyList<IndexedFileInfo> indexedFiles,
+            string? indexedHeadCommit = null)
         {
             _indexedAtUtc = indexedAtUtc;
             _projectPaths = projectPaths;
             _indexedFiles = indexedFiles;
+            _indexedHeadCommit = indexedHeadCommit;
         }
 
         public List<FileIndex> UpdateFileCalls { get; } = new();
         public List<string> RemoveFileCalls { get; } = new();
+        public List<(DateTime IndexedAtUtc, string? HeadCommit)> MetadataUpdates { get; } = new();
         public bool SaveCalled { get; private set; }
 
         public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -235,6 +389,19 @@ public sealed class IndexingPipelineIncrementalReindexTests
 
         public Task<DateTime?> GetIndexedAtUtcAsync(string solutionPath, CancellationToken cancellationToken)
             => Task.FromResult<DateTime?>(_indexedAtUtc);
+
+        public Task<string?> GetIndexedHeadCommitAsync(string solutionPath, CancellationToken cancellationToken)
+            => Task.FromResult(_indexedHeadCommit);
+
+        public Task UpdateSolutionMetadataAsync(
+            string solutionPath,
+            DateTime indexedAtUtc,
+            string? headCommit,
+            CancellationToken cancellationToken)
+        {
+            MetadataUpdates.Add((indexedAtUtc, headCommit));
+            return Task.CompletedTask;
+        }
 
         public Task<SolutionInfo?> GetSolutionByIdAsync(string solutionId, CancellationToken cancellationToken)
             => Task.FromResult<SolutionInfo?>(null);

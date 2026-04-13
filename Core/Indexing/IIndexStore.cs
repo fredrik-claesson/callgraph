@@ -48,4 +48,14 @@ public interface IIndexStore
     Task<IReadOnlyList<Edge>> GetEdgesAsync(string solutionPath, string methodKey, CancellationToken cancellationToken);
     Task UpdateFileAsync(string solutionPath, FileIndex update, CancellationToken cancellationToken);
     Task RemoveFileAsync(string solutionPath, string filePath, CancellationToken cancellationToken);
+
+    Task<string?> GetIndexedHeadCommitAsync(string solutionPath, CancellationToken cancellationToken)
+        => Task.FromResult<string?>(null);
+
+    Task UpdateSolutionMetadataAsync(
+        string solutionPath,
+        DateTime indexedAtUtc,
+        string? headCommit,
+        CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

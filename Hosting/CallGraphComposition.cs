@@ -1,6 +1,7 @@
 using CallGraph.Core.Analysis;
 using CallGraph.Core.Diagnostics;
 using CallGraph.Core.Extraction;
+using CallGraph.Core.Git;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
 using CallGraph.Core.Search;
@@ -50,6 +51,7 @@ public static class CallGraphComposition
         services.AddSingleton<IProjectIndexer, ProjectIndexer>();
         services.AddSingleton<IFileIndexer, FileIndexer>();
         services.AddSingleton<IIndexStore, SqliteIndexStore>();
+        services.AddSingleton<IGitRepositoryInspector, GitRepositoryInspector>();
         services.AddSingleton<ISemanticEmbedder, BgeSmallEnV15SemanticEmbedder>();
         services.AddSingleton<IHybridMethodSearchService, HybridMethodSearchService>();
         services.AddSingleton<IIndexingPipeline, IndexingPipeline>();
