@@ -1,5 +1,4 @@
 using System.Reflection;
-using CallGraph;
 using CallGraph.Contracts;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
@@ -13,45 +12,6 @@ namespace CallGraph.Tests;
 
 public sealed class LifecycleWatchBehaviorTests
 {
-    [Fact]
-    public void NormalizeLifecycleOptions_WatchOnly_DoesNotImplicitlyIndex()
-    {
-        var assembly = typeof(Program).Assembly;
-        var cliOptionsType = assembly.GetType("CallGraph.CliOptions", throwOnError: false);
-        Assert.NotNull(cliOptionsType);
-
-        var commandLineType = assembly.GetType("CallGraph.CliCommandLine", throwOnError: false);
-        Assert.NotNull(commandLineType);
-
-        var tryParseMethod = commandLineType!.GetMethod("TryParse", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(tryParseMethod);
-
-        object?[] parseArguments = { new[] { "--watch" }, null, null };
-        var parsed = (bool)tryParseMethod!.Invoke(null, parseArguments)!;
-        Assert.True(parsed);
-
-        var cliOptions = parseArguments[1];
-        Assert.NotNull(cliOptions);
-
-        var lifecycleType = assembly.GetType("CallGraph.LifecycleCommandRunner", throwOnError: false);
-        Assert.NotNull(lifecycleType);
-
-        var normalizeMethod = lifecycleType!.GetMethod("NormalizeLifecycleOptions", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(normalizeMethod);
-
-        var normalized = normalizeMethod!.Invoke(null, new[] { cliOptions! });
-        Assert.NotNull(normalized);
-
-        var normalizedType = normalized!.GetType();
-        var action = normalizedType.GetProperty("Action")!.GetValue(normalized);
-        var actionPath = normalizedType.GetProperty("ActionPath")!.GetValue(normalized);
-        var watchEnabled = (bool)normalizedType.GetProperty("WatchEnabled")!.GetValue(normalized)!;
-
-        Assert.Equal("None", action?.ToString());
-        Assert.Null(actionPath);
-        Assert.True(watchEnabled);
-    }
-
     [Fact]
     public async Task EnsureWatchingAsync_SameRegistration_DoesNotRestartWatcher()
     {

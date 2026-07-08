@@ -31,20 +31,6 @@ internal static class LifecycleCommandRunner
 
         var exit = 0;
 
-        if (normalized.WatchEnabled && normalized.WatchPath is null)
-        {
-            normalized = normalized with
-            {
-                WatchPath = await ResolveIndexedSolutionAsync(indexStore, "--watch", cancellationToken).ConfigureAwait(false)
-            };
-
-            if (normalized.WatchPath is null)
-            {
-                await host.StopAsync().ConfigureAwait(false);
-                return 1;
-            }
-        }
-
         if (normalized.Action is CliAction.Index)
         {
             normalized = normalized with
@@ -125,22 +111,8 @@ internal static class LifecycleCommandRunner
                 ? CliAction.Reindex
                 : CliAction.None;
 
-        var watchPath = options.WatchPath;
-
-        if (options.WatchEnabled)
-            watchPath ??= actionPath;
-
-        if (action is CliAction.None && watchPath is null && !options.WatchEnabled)
-            return new NormalizedLifecycleOptions(null, null, null, "Specify --index, --reindex, --watch, --clear, or a subcommand.");
-
-        if (actionPath is not null && watchPath is not null && !CliInputHelpers.PathsEqual(actionPath, watchPath))
-        {
-            return new NormalizedLifecycleOptions(
-                null,
-                null,
-                null,
-                "--watch must match the --index/--reindex solution path when both are provided.");
-        }
+        if (action is CliAction.None)
+            return new NormalizedLifecycleOptions(null, null, null, "Specify --index, --reindex, --clear, or a subcommand.");
 
         if (actionPath is not null)
         {
@@ -155,16 +127,7 @@ internal static class LifecycleCommandRunner
             actionPath = normalizedPath.Path;
         }
 
-        if (watchPath is not null)
-        {
-            var normalizedWatch = CliInputHelpers.NormalizeSolutionPath(watchPath, "--watch");
-            if (normalizedWatch.Error is not null)
-                return new NormalizedLifecycleOptions(null, null, null, normalizedWatch.Error);
-
-            watchPath = normalizedWatch.Path;
-        }
-
-        return new NormalizedLifecycleOptions(action, actionPath, watchPath, options.WatchEnabled, false);
+        return new NormalizedLifecycleOptions(action, actionPath, null, false, false);
     }
 
     public static async Task<string?> ResolveIndexedSolutionAsync(
