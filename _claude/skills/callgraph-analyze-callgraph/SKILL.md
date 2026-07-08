@@ -1,21 +1,14 @@
 ---
 name: callgraph-analyze-callgraph
 description: Run CallGraph analysis for a C# file (optionally a method) via CLI and summarize inbound/outbound calls.
-context: fork
-agent: callgraph-haiku
 ---
 
 # C# Analyze Call Graph
-
-## Command execution policy
-- Run commands in foreground only and always append `2>&1`.
-- Use daemon mode first for latency, then retry with `--no-daemon` only on timeout/error/inconsistent output.
 
 ## Inputs
 Parse the user request for:
 - filepath (required)
 - --method <name> (optional, case-sensitive)
-- IMPORTANT: for `callgraph analyze`, the selector flag is `--method` (not `--methodName`, which is for `get-method-source`)
 - --depth <n> (optional, default 1)
 - --direction inbound|outbound|bi-directional (optional, default bi-directional)
 - --visibility external|internal (optional, default external)
@@ -23,13 +16,16 @@ Parse the user request for:
 
 ## Scope rule
 - CallGraph index scope excludes test projects and the source files in those test projects.
-- For explicit test-targeted discovery, use one narrow shell query instead of forcing `callgraph analyze`.
 - If the target file is known, run `callgraph analyze` directly on that file.
-- Do not perform broader discovery/search first unless the user explicitly asks for it.
-- If user provides class + method but no file path, resolve file first with `search-file --pattern "*<ClassName>.cs"`.
-- When identifying candidate methods in a known file/folder, prefer scoped discovery flow: `list-methods` (scoped, live signatures) -> `search-method` (targeted index search) -> `get-method-source` (live body). Avoid bulk file reads until candidates are narrowed.
+- Do not perform broader discovery first unless the user explicitly asks for it.
+- If the user provides a class + method but no file path, resolve the file first with:
+  `callgraph query "SELECT Path FROM Files WHERE Path LIKE '%<ClassName>.cs'"`
+- When identifying candidate methods in a known file/type, prefer scoped discovery via `callgraph query` against
+  the `Methods` table (filter by `FilePath` or `ContainingType`), then read the exact source with a direct file
+  read at the reported `StartLine`. See the `callgraph-sql` skill for schema and worked query examples.
 - Use `analyze` to find relationships and candidate hops, not to infer detailed filter/query behavior by itself.
-- If the user is asking why data changes, which filter wins, or where a query is shaped, use `analyze` to narrow candidates, then inspect the downstream implementation with `get-method-source` or targeted reads until the real sink is found.
+- If the user is asking why data changes, which filter wins, or where a query is shaped, use `analyze` to narrow
+  candidates, then inspect the downstream implementation with a direct file read until the real sink is found.
 
 ## Visibility (depth strategy)
 - `external`: Class-based depth. Same-class calls don't increment depth. Use for component-level analysis.
