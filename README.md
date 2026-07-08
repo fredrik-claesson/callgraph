@@ -21,7 +21,8 @@ CallGraph is a local-first .NET CLI that indexes a C# solution with Roslyn into 
 | Feature | Data source | Precision benefit |
 |---|---|---|
 | **Roslyn-based indexing** | Live AST (at index time) | Compiler-accurate symbol resolution — no false positives from text matching (e.g. method name collisions across types) |
-| **Method-level call graph with edge kinds** | Indexed | Precise caller/callee relationships at method granularity, not class or file level |
+| **Method-level call graph with edge kinds** | Indexed | Precise caller/callee relationships at method granularity, not class or file level. Each edge is tagged with *how* the call is dispatched (`calls-direct`, `calls-via-interface`, `calls-via-property-get/-set`, `calls-via-delegate`, `calls-via-message`, `calls-via-event-add/-remove/-handler`) |
+| **Dispatch resolution (interface / property / delegate / message / event)** | Indexed | Resolves calls made through an **interface reference, accessor property, delegate, or published message** to their concrete target(s) — so a caller that reaches a component via DI/accessor indirection (e.g. `context.Payments.Get(...)` where `Payments` is typed `IFooComponent`) is captured. **Text search on a type name cannot find these** because the source never writes the concrete type; CallGraph can |
 | **Inbound / outbound / bi-directional analysis** | Indexed | Blast-radius analysis (inbound) vs. dependency tracing (outbound) without conflation |
 | **File path + line numbers on all results** | Indexed | Every result is directly navigable — no ambiguity about which overload or which file |
 | **Git-aware incremental reindex** | Indexed | Restores from snapshots when switching to a previously-indexed commit; otherwise uses git diff to detect changed files and reprocesses only those — index stays synchronized without a full rescan |
@@ -184,13 +185,61 @@ ORDER BY m.FilePath, m.StartLine;
 when comparing methods, because overloads can share the same display name but
 have different parameter types and different callers.
 
-Treat "potentially unused" results as a heuristic, not ground truth — the index has no
-reflection/interface-implementation awareness that a compiler diagnostic would have.
+Treat "potentially unused" results as a heuristic, not ground truth. The index **does** resolve
+interface, delegate, and published-message dispatch (via `calls-via-interface` / `calls-via-delegate`
+/ `calls-via-message` edges), so ordinary polymorphic calls are accounted for. What it still cannot
+see: reflection and other runtime-only dispatch, serialization/DI activation that never appears as a
+call site, and callers outside the indexed solution (e.g. another repo, or an excluded test project).
+The example query restricts to `private` methods precisely because they cannot be interface
+implementations or externally-referenced public API, which keeps the heuristic reliable for that case.
+
+Another common pattern — the **consumer surface / breadth of an interface**, bucketed by module. This
+is where the graph beats text search: it counts callers that reach the interface through a typed
+accessor property (`context.Payments.Get(...)`), which a name grep on `IPaymentSuperComponent` never
+sees. It matches the `calls-direct` edges into the *interface* method (the syntactic target of each
+interface-typed call):
+
+```sql
+-- How many distinct consumer types call IPaymentSuperComponent, grouped by module.
+-- (If more than one solution is indexed, also filter e.SolutionId to the target solution.)
+SELECT
+  CASE
+    WHEN caller.FilePath LIKE '%/Hosts/%'         THEN 'Hosts'
+    WHEN caller.FilePath LIKE '%/Mews.Business/%' THEN 'Core.Business'
+    ELSE 'Other'
+  END AS module_bucket,
+  COUNT(DISTINCT caller.ContainingType) AS consumer_types
+FROM Edges e
+JOIN Methods callee ON callee.Key = e.ToKey
+JOIN Methods caller ON caller.Key = e.FromKey
+WHERE callee.ContainingType LIKE '%.IPaymentSuperComponent'   -- the interface, not the impl
+GROUP BY module_bucket
+ORDER BY consumer_types DESC;
+```
+
+Swap the `LIKE` predicate for an empty result set to **prove a member is unused** (e.g. a newly
+introduced "paper seam" interface no code consumes yet). Because interface dispatch is resolved,
+zero inbound edges here is a trustworthy signal — subject to the reflection/external-caller caveats
+above.
 
 ## Behavior Notes
 
 - Indexing is queued internally; the CLI waits for completion.
 - Test projects are excluded from indexing/analysis.
+- **Edge kinds and dispatch resolution.** `Edges.Kind` records how each call is dispatched:
+  `calls-direct`, `calls-via-interface`, `calls-via-property-get`, `calls-via-property-set`,
+  `calls-via-delegate`, `calls-via-message`, `calls-via-event-add`, `calls-via-event-remove`,
+  `calls-via-event-handler`. A call made on an **interface-typed reference produces two edges**: a
+  `calls-direct` edge to the *interface* method (the syntactic target) **and** a `calls-via-interface`
+  edge to each concrete *implementation* method resolved via the dispatch map. Query implications:
+  - To find **who consumes an interface** (its consumer surface), match callers of the *interface*
+    method (`callee.ContainingType = 'Ns.IFoo'`, kind `calls-direct`). This is what a name-based text
+    search would try to do but misses when the call goes through a typed accessor property.
+  - To find **which implementation actually runs**, follow the `calls-via-interface` edges to the
+    concrete type.
+  - When counting total inbound edges of a concrete method, expect both `calls-direct` (calls on a
+    concrete-typed reference) and `calls-via-interface` (interface-dispatched) — don't double-count the
+    same logical call across the interface method and its implementation.
 - `--reindex` is git-aware and incremental: it first tries to restore from a saved snapshot if the current HEAD commit has been indexed before; otherwise, it computes changed files via git diff between the last-indexed commit and current HEAD and reprocesses only those. When git info is unavailable, it falls back to timestamp-based incremental reindexing. Full reindex is the last resort when changes exceed a threshold.
 
 ## Testing

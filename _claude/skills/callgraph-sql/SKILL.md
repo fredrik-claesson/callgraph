@@ -85,7 +85,7 @@ One row per indexed source file. Test-project files are excluded.
 | `FilePath` | Absolute file path containing the method |
 | `Kind` | Member kind. Observed values: `method`, `constructor`, `static-constructor`, `property-get`, `property-set`, `local-function`, `operator`, `conversion-operator`, `event-add`. **Note:** properties appear as `property-get`/`property-set`, so a facade/accessor property (e.g. `Repositories.Payments`) is itself a `Methods` row you can find callers of. |
 | `Display` | Human-readable signature/name for display |
-| `ContainingType` | **Fully-qualified** declaring type (namespace + type), e.g. `Mews.Data.Entities.Repositories.Repositories`. For interface-dispatched edges the callee's `ContainingType` is the **interface** (e.g. `…IPaymentSuperComponent`), not the implementation. |
+| `ContainingType` | **Fully-qualified** declaring type (namespace + type), e.g. `Mews.Data.Entities.Repositories.Repositories`. For an interface-dispatched call the `calls-direct` edge's callee `ContainingType` is the **interface** (e.g. `…IPaymentSuperComponent`); a parallel `calls-via-interface` edge points to the concrete **implementation** type (see the `Edges.Kind` dual-edge rule below). Match the interface for consumer-surface questions, the implementation for "which code runs". |
 | `StartLine` | 1-based line number where the member starts |
 | `Accessibility` | public/private/internal/protected etc. |
 
@@ -102,7 +102,7 @@ One row per method/member. Use this table to find methods/types by name or conta
 | `FromKey` | FK to `Methods.Key` — the caller |
 | `ToKey` | FK to `Methods.Key` — the callee |
 | `Direction` | Edge direction as stored (see worked examples below for join direction) |
-| `Kind` | Call kind. Observed values: `calls-direct`, `calls-via-interface`, `calls-via-property-get`, `calls-via-property-set`, `calls-via-delegate`, `calls-via-message`, `calls-via-event-add`, `calls-via-event-remove`. Use this to tell *how* a call is dispatched — e.g. `calls-via-property-get` is how facade/accessor-property reads show up; `calls-via-interface` is how DI/interface calls show up (the ones text search misses); `calls-via-delegate` is a method passed as a delegate/lambda. |
+| `Kind` | Call kind. Values: `calls-direct`, `calls-via-interface`, `calls-via-property-get`, `calls-via-property-set`, `calls-via-delegate`, `calls-via-message`, `calls-via-event-add`, `calls-via-event-remove`, `calls-via-event-handler`. Tells you *how* a call is dispatched. **Dual-edge rule:** a call on an interface-typed reference records **two** edges — a `calls-direct` edge to the *interface* method (the syntactic target) **and** a `calls-via-interface` edge to each concrete *implementation*. So to find an interface's **consumer surface**, query callers of the *interface* method (kind `calls-direct`, `ContainingType='Ns.IFoo'`) — that is the set text search misses when access is via an accessor property; to find **which implementation runs**, follow the `calls-via-interface` edges. `calls-via-property-get/-set` = facade/accessor-property reads; `calls-via-delegate` = method passed as a delegate/lambda. |
 | `SolutionId` | FK to `Solutions.Id` |
 
 One row per call relationship. Use this table for one-hop caller/callee lookups instead of scanning source.
