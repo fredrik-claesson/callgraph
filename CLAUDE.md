@@ -20,7 +20,7 @@ dotnet build CallGraph.csproj
 # Index once
 dotnet run --project CallGraph.csproj -- --index "/path/to/solution.sln"
 
-# Reindex (git-aware incremental)
+# Reindex (git-aware and incremental: snapshot fast-path, git-diff incremental, timestamp fallback)
 dotnet run --project CallGraph.csproj -- --reindex "/path/to/solution.sln"
 
 # Clear the index

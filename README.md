@@ -24,7 +24,7 @@ CallGraph is a local-first .NET CLI that indexes a C# solution with Roslyn into 
 | **Method-level call graph with edge kinds** | Indexed | Precise caller/callee relationships at method granularity, not class or file level |
 | **Inbound / outbound / bi-directional analysis** | Indexed | Blast-radius analysis (inbound) vs. dependency tracing (outbound) without conflation |
 | **File path + line numbers on all results** | Indexed | Every result is directly navigable — no ambiguity about which overload or which file |
-| **Git-aware incremental reindex** | Indexed | Reindexes only what changed since the last indexed commit, using stored commit snapshots — index stays synchronized without a full rescan |
+| **Git-aware incremental reindex** | Indexed | Restores from snapshots when switching to a previously-indexed commit; otherwise uses git diff to detect changed files and reprocesses only those — index stays synchronized without a full rescan |
 | **Test project exclusion** | N/A (policy applied at index time) | Skips test projects entirely during indexing — reduces index size and reindex time |
 | **SQLite-backed index store** | Indexed | Persistent on-disk index survives restarts without re-indexing the solution |
 
@@ -154,7 +154,7 @@ reflection/interface-implementation awareness that a compiler diagnostic would h
 
 - Indexing is queued internally; the CLI waits for completion.
 - Test projects are excluded from indexing/analysis.
-- `--reindex` is git-aware and incremental: it uses the commit snapshot recorded in `SolutionSnapshots` to reprocess only the files that changed since the last index, falling back to a full reindex when incremental reindexing isn't possible (e.g. no prior snapshot, or the working tree has diverged).
+- `--reindex` is git-aware and incremental: it first tries to restore from a saved snapshot if the current HEAD commit has been indexed before; otherwise, it computes changed files via git diff between the last-indexed commit and current HEAD and reprocesses only those. When git info is unavailable, it falls back to timestamp-based incremental reindexing. Full reindex is the last resort when changes exceed a threshold.
 
 ## Testing
 
