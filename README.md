@@ -1,32 +1,20 @@
 # CallGraph CLI
 
-CallGraph is a local-first .NET CLI that indexes C# solutions with Roslyn into a SQLite database, giving coding agents and developers fast, compiler-accurate call graph analysis, symbol search, and diagnostics — without scanning source files in prompts.
+CallGraph is a local-first .NET CLI that indexes a C# solution with Roslyn into a SQLite database, giving coding agents and developers fast, compiler-accurate SQL lookups and call graph analysis — without scanning source files in prompts.
 
-> **Indexing is required.** All analysis commands operate against a local index. Run `callgraph --index /path/to/solution.sln` once to bootstrap. After that, either reindex on demand with `callgraph --reindex` or keep a watcher running permanently with `callgraph --watch` to stay current automatically. See [QUICKSTART.md](QUICKSTART.md) to get up and running.
+> **Indexing is required.** All analysis commands operate against a local index. Run `callgraph --index /path/to/solution.sln` once to bootstrap. After that, reindex on demand with `callgraph --reindex` (git-aware and incremental). See [QUICKSTART.md](QUICKSTART.md) to get up and running.
 
 ## Features
 
-### Input Token Savings
+### Token Savings
 
-| Feature | Data source | How it saves input tokens |
+| Feature | Data source | How it saves tokens |
 |---|---|---|
-| **`search-file` / `search-method`** | Indexed | Returns matching paths/signatures directly — no directory scans or full-file reads needed to locate symbols |
-| **`list-methods`** | Indexed | Compact method inventory per file/class — agents don't need to `Read` the whole file to know what's in it |
-| **`get-method-source` (`body_only` mode)** | Hybrid — index provides spans, live file read retrieves content | Extracts just the method body by exact byte/line span — no need to read the entire file to get one method |
-| **`analyze` with `--depth` and `--visibility` controls** | Indexed | Limits graph traversal to what's relevant — agents don't receive the full call tree |
-| **Solution/folder/file scoping on all commands** | N/A | Narrows every query to the specific file or folder in scope, eliminating noise |
-| **PreToolUse hook** | N/A | Automatically rewrites shell searches (`find`, `rg`, `grep`) to targeted CallGraph commands before results reach the context window |
-| **Hard result limits (200 for search, 100 for diagnostics)** | N/A | Prevents large result floods from ever entering the context window |
-
-### Output Token Savings
-
-| Feature | Data source | How it saves output tokens |
-|---|---|---|
-| **Compact tab-delimited text format** | N/A | `M\t<id>\t<file:line>\t<type>\t<method>` rows are far more compact than equivalent JSON with repeated keys |
-| **`TotalCount` + `Truncated` flag** | N/A | Agent can acknowledge overflow in one line rather than listing all results or widening its search |
-| **Evidence ledger pattern (CLAUDE.md protocol)** | N/A | Instructs agents to record only key results per command rather than pasting raw tool output into follow-up prompts |
-| **`analyze` depth cap (`internal` ≤ 2)** | N/A | Forces two-stage analysis over one large dump — each stage output is smaller and more focused |
-| **Bundled skills in `_claude/skills/`** | N/A | Pre-defined invocation patterns reduce the agent's need to reason out command flags from scratch |
+| **`query "<SQL>"`** | Indexed | Read-only SQL against files/methods/edges — compact tab-separated rows instead of directory scans or full-file reads to locate symbols |
+| **`analyze` with `--depth`, `--direction`, `--visibility`** | Indexed | Limits call-graph traversal to what's relevant — agents don't receive the full call tree |
+| **Solution scoping (`--solutionPath`/`--solutionId`)** | N/A | Narrows `analyze` to a specific indexed solution, eliminating cross-solution noise |
+| **Compact tab-delimited output** | N/A | `query` prints a header line plus tab-separated rows; `analyze` prints `M`/`C` rows — both far more compact than equivalent JSON |
+| **Bundled skills in `_claude/skills/`** | N/A | `callgraph-sql` and `callgraph-analyze-callgraph` document schema and usage patterns, reducing the agent's need to reason out flags/queries from scratch |
 
 ### Improved Quality and Precision
 
@@ -35,25 +23,18 @@ CallGraph is a local-first .NET CLI that indexes C# solutions with Roslyn into a
 | **Roslyn-based indexing** | Live AST (at index time) | Compiler-accurate symbol resolution — no false positives from text matching (e.g. method name collisions across types) |
 | **Method-level call graph with edge kinds** | Indexed | Precise caller/callee relationships at method granularity, not class or file level |
 | **Inbound / outbound / bi-directional analysis** | Indexed | Blast-radius analysis (inbound) vs. dependency tracing (outbound) without conflation |
-| **`list-unused` (compiler-accurate dead code)** | Live AST (at query time) | Uses Roslyn diagnostics, not heuristics — no false "unused" from reflection or interface implementations |
-| **`list-warnings`** | Live AST (at query time) | Surfaces compiler and analyzer diagnostics scoped to a file/project, not guessed from code structure |
 | **File path + line numbers on all results** | Indexed | Every result is directly navigable — no ambiguity about which overload or which file |
-| **Incremental reindex** | Indexed | Index stays synchronized with file changes — agents query current state, not stale snapshots |
-| **Git self-review gate (CLAUDE.md hook)** | N/A | Prevents premature commits by requiring an explicit PR2 review pass before `git commit` proceeds |
-| **Bundled IDE integration (`_claude`, `_copilot`, `_cursor`, `_codex`, `_opencode`)** | N/A | Standardizes agent workflows across toolchains, reducing per-agent prompt engineering drift |
-
-### Performance
-
-| Feature | Data source | Benefit |
-|---|---|---|
-| **Daemon mode (named pipe IPC)** | N/A | Persistent in-memory index with sub-millisecond query latency — no process startup cost per command |
-| **Incremental reindex** | Indexed | Only re-processes changed files on edit — avoids full solution reparse on each save |
+| **Git-aware incremental reindex** | Indexed | Restores from snapshots when switching to a previously-indexed commit; otherwise uses git diff to detect changed files and reprocesses only those — index stays synchronized without a full rescan |
 | **Test project exclusion** | N/A (policy applied at index time) | Skips test projects entirely during indexing — reduces index size and reindex time |
 | **SQLite-backed index store** | Indexed | Persistent on-disk index survives restarts without re-indexing the solution |
 
-## Build & Install
+## Build
 
-### 1. Publish
+```bash
+dotnet build ./CallGraph.csproj -c Release
+```
+
+Or publish a single executable:
 
 ```bash
 dotnet publish ./CallGraph.csproj -c Release -r osx-arm64 -o ./publish
@@ -62,201 +43,43 @@ dotnet publish ./CallGraph.csproj -c Release -r osx-arm64 -o ./publish
 This produces a single executable `CallGraph` (or `CallGraph.exe` on Windows) in `./publish/`.
 For Windows, use `-r win-x64` (or your target RID).
 
-### 2. Install command shim + skills
-
-Run from the publish folder:
-
-```bash
-./CallGraph install
-```
-
-On Windows:
-
-```powershell
-.\CallGraph.exe install
-```
-
-What `install` does:
-- Deploys bundled `_claude`, `_codex`, `_cursor`, `_copilot`, `_opencode` only when matching target directories already exist in home (`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.config/opencode`).
-- Overwrites existing skill/agent/command files in those directories with the bundled versions.
-- Does not auto-merge `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
-- Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
-  - Test-targeted shell searches are left as shell fallback (not rewritten), because test projects are excluded from index scope.
-- For Copilot CLI, installs reusable skills/agent assets in `~/.copilot` and prints a manual step for enabling hooks from repository `.github/hooks/*.json`.
-- For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` (including a plugin-based pre-tool hook policy in `plugins/callgraph-hooks.js`).
-- Includes bundled PR2 review assets:
-  - skills: `pr2-deep-pr-review` for Claude/Codex/Copilot/OpenCode
-  - commands: `/pr2-deep-pr-review` for Cursor/OpenCode
-- Installs `callgraph` command shim:
-  - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
-  - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
-  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim when it is a symlink)
-  - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
-- Updates Windows user `PATH` automatically (new shells).
-- On macOS/Linux, if `~/.local/bin` is not on `PATH`, it prints the exact export command.
-
-Hook tuning (optional):
-- Claude hook fallback threshold: `CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- Copilot hook fallback threshold: `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
-
-Hook policy mode (shared):
-- Claude policy mode: `CLAUDE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- Copilot policy mode: `COPILOT_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- `warn`: do not block the tool call; return/log a policy hint.
-- `deny`: hard-block policy violations as errors.
-- Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`) to aggressively rewrite blocked C# shell exploration into CallGraph commands while still avoiding hard-block errors.
-
-Explicit hook hint feedback (hook-enabled CLIs):
-- Hooks emit targeted hints for common high-cost mistakes:
-  - using `callgraph analyze --methodName` instead of `--method`
-  - running `get-method-source` without `--mode body_only`
-  - using `search-method --keywords` for single identifier lookups where `--pattern` is better
-  - repeating identical `callgraph` commands in the same session instead of reusing prior evidence
-- Claude and OpenCode hooks also auto-correct selected argument mistakes when safe (for example `--methodName` -> `--method` on `analyze`).
-
-Git commit self-review gate (hook-enabled CLIs):
-- Hooks intercept `git commit` and require an explicit self-review decision marker.
-- Default behavior on commit attempt: block and instruct the agent to ask the user whether to run self-review.
-- If user wants self-review, the agent must run the PR2 deep-review workflow:
-  - context loading (PR via `gh pr ...` when available; otherwise local pre-commit mode via `git status`/`git diff`)
-  - eight explicit independent passes (problem resolution, conventions, deprecated code, tests, concurrency, performance, DB index coverage, and future-flag readiness with OFF/ON test coverage)
-  - candidate findings list
-  - one parallel sub-agent per candidate finding for validation
-  - final report with recommendation (`APPROVE | REQUEST CHANGES | NEEDS DISCUSSION`)
-  - commit only when recommendation is `APPROVE`, then rerun with `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
-- If user declines self-review, rerun with `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`
-- PowerShell equivalent marker format is supported: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`).
-
-See [QUICKSTART.md](QUICKSTART.md) for more details.
+See [QUICKSTART.md](QUICKSTART.md) for a full walkthrough.
 
 ## CLI Usage
-
-### Lifecycle
 
 ```bash
 # Index once
 callgraph --index /path/to/solution.sln
 
-# Reindex once
-callgraph --reindex /path/to/solution.sln
+# Reindex (git-aware, incremental)
+callgraph --reindex [/path/to/solution.sln]
 
-# Index and keep watching
-callgraph --index /path/to/solution.sln --watch
-
-# Watch existing indexed solution (prompts if multiple)
-callgraph --watch
-
-# Clear index database
+# Clear the index database
 callgraph --clear
-```
 
-### Analysis and Search
+# Run read-only SQL against the index
+callgraph query "SELECT Path FROM Files WHERE Path LIKE '%Controller.cs'"
 
-```bash
-# List indexed solutions
-callgraph list-solutions   # auto-starts daemon on first call
-
-# Search files
-callgraph search-file --pattern "*Controller.cs" [--regex] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
-
-# Search methods
-callgraph search-method --keywords "login authentication" [--regex] [--pattern <pattern>] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs]
-
-# Rewrite a shell command when a safe CallGraph equivalent exists
-callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
-
-# List methods (visibility defaults to external)
-callgraph list-methods [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>] [--folderPath /abs/folder] [--filePath /abs/file.cs] [--fileList /abs/files.txt]
-
-# Analyze call graph for file/method
+# Analyze call graph for a file/method
 callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--direction inbound|outbound|bi-directional] [--visibility external|internal] [--solutionPath /path/to/solution.sln] [--solutionId <id>]
-
-# Extract live method source from a known file
-callgraph get-method-source --filePath /abs/file.cs [--methodName MethodName] [--containingType Namespace.Type] [--signature "Task Foo(string x)"] [--startLine 123] [--mode signature_only|signature_plus_body|body_only|body_without_comments]
-
-# List unused diagnostics (file-scoped; required)
-callgraph list-unused --projectPath /abs/project.csproj --filePath /abs/file.cs
-
-# List warning diagnostics (file-scoped; required)
-callgraph list-warnings --projectPath /abs/project.csproj --filePath /abs/file.cs
 ```
 
 Notes:
-- Analysis commands auto-start and reuse a background daemon by default.
-- `rewrite` outputs a rewritten command when a safe equivalent exists; otherwise exits non-zero.
-- Use `--no-daemon` for one-shot execution or `--require-daemon` to fail if daemon is unavailable.
-- `analyze` defaults to depth `1` when `--depth` is omitted.
+- `--reindex` with no path reindexes the current (or only) indexed solution; otherwise it targets the given `.sln`.
+- `query` opens the index database **read-only**; write statements (INSERT/UPDATE/DELETE/DDL) are rejected with a non-zero exit and an error on stderr.
+- `query` output is tab-separated: a header line of column names, then one tab-separated row per result.
+- `analyze` defaults to depth `1`, direction `bi-directional`, and visibility `external` when the corresponding flags are omitted.
 - `analyze` auto-selects the indexed solution when exactly one solution is indexed and no `--solutionPath`/`--solutionId` is provided.
-- `search-file`, `search-method`, and `list-methods` return plain text lines (no JSON).
-- `search-file`: one file path per line.
-- `search-method`/`list-methods`: one match per line as tab-separated fields:
-  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`.
-- `analyze`: plain text, line-based rows:
+- `analyze` output is plain text, line-based:
   - methods: `M\t<methodId>\t<filePath[:line]>\t<containingType>\t<methodName>`
   - calls: `C\t<callerMethodId>\t<calleeMethodId>\t<direction>`
-- `get-method-source` returns structured JSON with the selected method content plus exact line/byte span.
-- `get-method-source --mode` supports `signature_only`, `signature_plus_body` (default), `body_only`, and `body_without_comments`.
-- `list-methods` defaults to `--visibility external` (public/protected/protected internal), and refreshes listed signatures from live source before output. Use `--visibility internal` to include all methods.
-- `list-unused` and `list-warnings` require both `--projectPath` and `--filePath`.
-- `--filePath` must be absolute and point to a `.cs` file.
-- Diagnostic commands return structured raw JSON with `totalCount` and `diagnostics` (`diagnostics.length` is the returned count).
 
-## Hybrid Method Search
+## Bundled Skills
 
-`search-method` uses a hybrid loop for non-regex queries:
+Two Claude skills ship under `_claude/skills/`:
 
-1. Lexical candidate fetch:
-   - Use wildcard-aware tokenization (whole identifiers by default; casing split only when wildcards are present).
-   - Expand a small synonym set (for example `login`/`signin`/`authentication`).
-   - Query index with wildcard token patterns.
-2. Lexical scoring:
-   - Build method context from split namespace, containing class, method name, and signature.
-   - Score candidate matches by weighted field overlap.
-3. Top-K semantic rerank:
-   - Keep lexical top-K candidates (default `200`).
-   - Embed query and candidates with local `bge-small-en-v1.5`.
-   - Re-rank by blended lexical + semantic score.
-4. Return:
-   - Return top results (default limit `200`) as line-based text output.
-
-Regex searches (`--regex`) keep the previous regex-only search behavior.
-
-Keyword matching is a weighted hybrid: candidate retrieval is effectively OR-based across query tokens, while lexical scoring boosts methods that match more keywords (closer to soft-AND ranking).
-
-### Local bge-small-en-v1.5 Bundle
-
-Model assets are expected in `models/bge-small-en-v1.5` and copied to output on build/publish.
-
-Fetch a compatible local bundle:
-
-```bash
-./scripts/bootstrap-bge-small-en-v1.5.sh
-```
-
-Expected files:
-- `model.onnx` or `model_quantized.onnx` (optionally under `onnx/`)
-- `vocab.txt`
-
-If model files are missing, CallGraph falls back to lexical-only ranking.
-
-### Daemon Controls
-
-```bash
-# Start daemon manually (optional)
-callgraph serve
-
-# Check daemon status
-callgraph status
-
-# Stop daemon
-callgraph stop
-```
-
-`serve` watches all indexed solutions at startup by default. Use `callgraph serve --no-watch-indexed` to disable watcher registration.
-`serve` exits after 10 hours of inactivity by default; override with `callgraph serve --idleMinutes <n>`.
+- **`callgraph-sql`** — documents the full DB schema and worked `query` examples (find files/methods/types, one-hop callers/callees).
+- **`callgraph-analyze-callgraph`** — documents `analyze` usage for multi-hop call-graph traversal.
 
 ## Visibility Modes
 
@@ -270,36 +93,29 @@ Default index location:
 - Windows: `%LocalAppData%\CallGraph\index.db`
 - macOS: `~/Library/Application Support/CallGraph/index.db`
 
-## SQLite Query Examples
+Override with configuration:
 
-The SQLite index is useful for exploratory queries, but treat these as heuristics:
-- "potentially unused" from the index is not equivalent to Roslyn unused diagnostics; prefer `callgraph list-unused` for authoritative results
-- `ContainingType` is stored as a minimally qualified type name, so same-named types from different namespaces can be grouped together
-
-Use the SQLite CLI directly against the default index path:
-
-```bash
-# macOS
-sqlite3 "$HOME/Library/Application Support/CallGraph/index.db"
-
-# Windows
-sqlite3 "%LocalAppData%\\CallGraph\\index.db"
+```json
+{
+  "IndexStore": {
+    "DatabasePath": "D:\\path\\to\\index.db"
+  }
+}
 ```
 
-Run a query inline and print column headers:
+## Database Schema
 
-```bash
-sqlite3 -header -column "$HOME/Library/Application Support/CallGraph/index.db" "
-SELECT
-  m.ContainingType,
-  count(*) AS PublicMethodCount
-FROM Methods m
-WHERE lower(coalesce(m.Accessibility, '')) = 'public'
-GROUP BY m.ContainingType
-HAVING count(*) > 10
-ORDER BY PublicMethodCount DESC;
-"
-```
+The index is a SQLite database with 7 tables:
+
+- `Solutions(Id, Path, IndexedAtUtc, HeadCommit, SlnOnly)`
+- `Projects(SolutionId, Path, ReversePath)`
+- `Files(SolutionId, Path, ReversePath, UpdatedAtUtc)`
+- `Methods(Key, SolutionId, FilePath, Kind, Display, ContainingType, StartLine, Accessibility)`
+- `Edges(FromKey, ToKey, Direction, Kind, SolutionId)`
+- `SolutionAliases(SolutionId, AliasPath)`
+- `SolutionSnapshots(SolutionId, HeadCommit, IndexedAtUtc, PayloadJson)`
+
+See the `callgraph-sql` skill for column-by-column documentation and worked query examples, including:
 
 ```sql
 -- Potentially unused private methods:
@@ -328,66 +144,17 @@ ORDER BY m.FilePath, m.StartLine;
 ```
 
 `m.Key` is the canonical symbol identity in the index. Prefer it over `m.Display`
-when validating unused-method candidates, because overloads can share the same
-display name but have different parameter types and different callers.
+when comparing methods, because overloads can share the same display name but
+have different parameter types and different callers.
 
-```sql
--- Types with more than 10 public methods,
--- excluding common endpoint, adapter, and persistence naming patterns.
-SELECT
-  m.ContainingType,
-  count(*) AS PublicMethodCount
-FROM Methods m
-WHERE lower(coalesce(m.Accessibility, '')) = 'public'
-  AND coalesce(m.ContainingType, '') <> ''
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%controller%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%endpoint%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%repository%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%adapter%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%dbcontext%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%store%'
-  AND lower(coalesce(m.ContainingType, '')) NOT LIKE '%dao%'
-  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/controllers/%'
-  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/endpoints/%'
-  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/repositories/%'
-  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/adapters/%'
-  AND lower(coalesce(m.FilePath, '')) NOT LIKE '%/persistence/%'
-GROUP BY m.ContainingType
-HAVING count(*) > 10
-ORDER BY PublicMethodCount DESC, m.ContainingType;
-```
-
-Override with configuration:
-
-```json
-{
-  "IndexStore": {
-    "DatabasePath": "D:\\path\\to\\index.db"
-  },
-  "MethodSearch": {
-    "ResultLimit": 80,
-    "LexicalTopK": 200,
-    "MaxCandidatePool": 2000,
-    "MaxPatternQueries": 8,
-    "MinQueryTokenLength": 3,
-    "EnableSemanticRerank": true,
-    "SemanticWeight": 0.55
-  },
-  "SemanticSearch": {
-    "BgeSmallEnV15": {
-      "Enabled": true,
-      "ModelDirectory": "models/bge-small-en-v1.5",
-      "MaxSequenceLength": 128
-    }
-  }
-}
-```
+Treat "potentially unused" results as a heuristic, not ground truth — the index has no
+reflection/interface-implementation awareness that a compiler diagnostic would have.
 
 ## Behavior Notes
 
-- Indexing is queued internally; CLI waits for completion unless `--watch` is active.
+- Indexing is queued internally; the CLI waits for completion.
 - Test projects are excluded from indexing/analysis.
-- File watcher uses debounce for incremental reindexing.
+- `--reindex` is git-aware and incremental: it first tries to restore from a saved snapshot if the current HEAD commit has been indexed before; otherwise, it computes changed files via git diff between the last-indexed commit and current HEAD and reprocesses only those. When git info is unavailable, it falls back to timestamp-based incremental reindexing. Full reindex is the last resort when changes exceed a threshold.
 
 ## Testing
 

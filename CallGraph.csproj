@@ -33,7 +33,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="5.0.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.0.0" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,25 +51,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="models\bge-small-en-v1.5\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Include="_claude\**\*" Exclude="_claude\**\.DS_Store">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="_codex\**\*" Exclude="_codex\**\.DS_Store">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="_cursor\**\*" Exclude="_cursor\**\.DS_Store">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="_copilot\**\*" Exclude="_copilot\**\.DS_Store">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="_opencode\**\*" Exclude="_opencode\**\.DS_Store">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

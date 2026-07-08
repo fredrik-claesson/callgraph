@@ -200,31 +200,24 @@ public sealed class AnalyzeInterfaceCallsE2ETests
                 new IndexJobRequest("job-1", solutionId, solutionPath, false, false),
                 CancellationToken.None);
 
-            var externalMethods = await indexStore.ListMethodsAsync(
-                "external",
-                solutionPath,
-                solutionId: null,
-                folderPath: null,
-                filePath: null,
-                CancellationToken.None);
-            var internalMethods = await indexStore.ListMethodsAsync(
-                "internal",
-                solutionPath,
-                solutionId: null,
-                folderPath: null,
-                filePath: null,
-                CancellationToken.None);
+            var index = await indexStore.LoadAsync(solutionPath, CancellationToken.None);
+            Assert.True(index is not null, "Expected indexed solution.");
+
+            var internalMethods = index!.Nodes;
+            var externalMethods = internalMethods
+                .Where(node => IsExternalAccessibility(node.Accessibility))
+                .ToList();
 
             Assert.NotEmpty(externalMethods);
             Assert.NotEmpty(internalMethods);
             Assert.True(internalMethods.Count > externalMethods.Count);
 
-            Assert.All(externalMethods, m =>
-                Assert.True(IsExternalAccessibility(m.Method.Accessibility),
-                    $"Unexpected external accessibility: {m.Method.Accessibility ?? "<null>"} for {m.Method.Id}"));
+            Assert.All(externalMethods, node =>
+                Assert.True(IsExternalAccessibility(node.Accessibility),
+                    $"Unexpected external accessibility: {node.Accessibility ?? "<null>"} for {node.Id}"));
 
-            Assert.Contains(internalMethods, m => string.Equals(m.Method.Accessibility, "private", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(internalMethods, m => string.Equals(m.Method.Accessibility, "internal", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(internalMethods, node => string.Equals(node.Accessibility, "private", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(internalMethods, node => string.Equals(node.Accessibility, "internal", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

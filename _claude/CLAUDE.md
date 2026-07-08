@@ -1,115 +1,15 @@
 # C# Code Intelligence
-Default to CallGraph for C# code discovery. Do not use `rg`/`find`/`grep` until CallGraph daemon + `--no-daemon` retry both fail, unless the task explicitly targets tests:
-- Find methods by name/pattern → `callgraph-search-method`
-- Find files by name → `callgraph-search-file`
-- List methods in a class/file → `callgraph-list-methods`
-- Read exact live method content from file → `callgraph-get-method-source`
-- Trace call dependencies → `callgraph-analyze-callgraph`
-- Semantic/exploratory searches → `callgraph-search-method`
-- Planning and gathering context → `callgraph-analyze-callgraph`
 
-Index scope note:
-- CallGraph indexing/analysis excludes test projects and the source files in those test projects.
-- When the task explicitly targets tests, prefer one narrow shell query (`rg`/`find`/`grep`) instead of forcing CallGraph.
+CallGraph indexes a C# solution into a local SQLite database and offers two ways to interrogate it:
 
-Use shell `rg`/`find`/`grep` only as a narrow fallback when:
-- CallGraph is unavailable or still failing after daemon + `--no-daemon` retry, or
-- the task is no longer exact symbol discovery and requires broader behavior/query tracing that CallGraph cannot answer on its own.
+- `callgraph query "<SQL>"` — read-only SQL over the indexed database (files, methods, types, one-hop
+  callers/callees). See the `callgraph-sql` skill for the schema and worked examples.
+- `callgraph analyze --filepath <file.cs> [...]` — multi-hop call-graph traversal (callers/callees,
+  visibility- and depth-aware). See the `callgraph-analyze-callgraph` skill.
 
-When spawning sub-agents for C# exploration, always include this instruction
-explicitly in the prompt: "Use CallGraph skills (callgraph-search-method,
-callgraph-list-methods, callgraph-analyze-callgraph, and callgraph-get-method-source before falling back to grep/rg/find."
-Also include a compact handoff packet (`goal | owned scope | known evidence IDs | unknowns | stop condition`) and prohibit raw output dumps.
+Prefer `callgraph query` for file/method/type lookups, and `callgraph analyze` for tracing call
+relationships across more than one hop. If the index is missing or stale, run `callgraph --index <sln>`
+or `callgraph --reindex` before either command.
 
-Command execution policy for CallGraph:
-- Always append `2>&1`.
-- Use daemon mode first for latency: `callgraph <command> ... 2>&1`.
-- Retry with `--no-daemon` only on timeout/error/inconsistent output:
-  `callgraph <command> ... --no-daemon 2>&1`.
-- `callgraph analyze` uses `--method` (never `--methodName`).
-- If a concrete method is known, start with `callgraph analyze --visibility internal --depth 1` and widen only when needed.
-- For `callgraph get-method-source`, prefer `--mode body_only` (or `body_without_comments`) unless signature context is explicitly required.
-- For exact identifier queries, prefer `search-file` + `list-methods` + `get-method-source` or identifier-based `search-method --pattern` before semantic keyword search.
-- For behavioral questions, use CallGraph to find candidate symbols first, then trace into the real implementation and stop only after you inspect the filter/query/sink logic.
-- Use shell `rg`/`find` only as a last-resort fallback after CallGraph retry still fails to locate targets, and keep fallback to one narrow query.
-- Claude `PreToolUse` hook rewrites high-confidence C# shell searches to CallGraph commands when possible, but should not block all progress when `callgraph` is unavailable.
-- For `callgraph analyze`, if `--visibility internal` is used, `--depth` must be `<= 2`.
-- If deeper internals are needed, use two-stage analysis:
-  1. map callers first with inbound + external depth 2,
-  2. pick 1-3 candidates and run outbound + internal depth 2 per candidate.
-
-Git commit self-review policy:
-- `git commit` is hook-gated and requires explicit decision marker.
-- On first commit attempt (no marker), ask user whether self-review should run before commit.
-- If user wants self-review:
-  1. describe intention, goal, and purpose of the changes,
-  2. run PR2 deep review workflow:
-     - phase 1 context (PR with `gh pr ...` when available, else local pre-commit diffs),
-     - phase 2 eight explicit review passes (including future-flag readiness and OFF/ON test coverage),
-     - phase 3 candidate findings list,
-     - phase 4 one parallel sub-agent per finding for validation,
-     - phase 5 final report with recommendation,
-  3. if recommendation is `APPROVE`, rerun commit with `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`.
-- If user declines self-review, rerun with `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`.
-- PowerShell marker format is supported: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`).
-
-## Invocation Guardrails
-- Run one discovery command at a time. Do not submit parallel `callgraph`/shell discovery calls; a single failing sibling can cancel the whole batch.
-- If a command fails due to invalid/missing args, correct and rerun the same command sequentially before trying alternatives.
-- Required flag map (exact casing):
-  `callgraph analyze`: `--filepath` (lowercase `p`), optional `--method` (never `--methodName`).
-  `callgraph get-method-source`: `--filePath` plus one selector: `--methodName` or `--signature` or `--startLine`.
-  `callgraph list-warnings` / `callgraph list-unused`: both `--projectPath` and `--filePath`.
-- Prefer one command per call (no chained `&&` / `;`) so validation errors stay isolated and recoverable.
-
-## Workflow Scenarios
-Select one scenario at the start and state it in one sentence.
-
-`TopDownCallChain` (outbound-first): starting from a known entrypoint method, run
-`callgraph-analyze-callgraph` outbound with `visibility=external` first, then
-`visibility=internal` where needed; walk depth-by-depth until side effects/sinks,
-collecting `method -> direct callees -> important awaits/state changes`.
-
-- `UnknownEntrypoints`:
-  - Find likely entrypoints quickly with `callgraph-search-file` + `callgraph-list-methods`.
-  - Then switch to outbound call analysis (`visibility=external`, then `internal` for unclear/high-risk paths).
-- `KnownEntrypoints`:
-  - Use `TopDownCallChain` directly (outbound-first).
-  - Confirm async/sync status along each chain before planning edits.
-- `KnownComponentImpact`:
-  - Start inbound (`external` then `internal`) to map callers and blast radius.
-  - Run limited outbound from top-risk callers to confirm impact boundaries.
-  - Produce caller-impact matrix: `caller | layer | change type | risk | confidence`.
-- `LargeRefactorPlanning`:
-  - Run `Map -> Deepen -> Synthesize`.
-  - Map: scope inventory and chain overview.
-  - Deepen: only hotspots/unknowns.
-  - Synthesize: phased plan, risks, verification.
-
-## Shared Workflow Rules
-- Use elastic budgets: start with 10 discovery tool calls; expand by +8 only after a checkpoint.
-- Required checkpoints:
-  - `scope checkpoint`: `file | method(s) | why relevant | confidence`
-  - `expansion checkpoint`: `unknowns | next tools | expected value`
-- Prefer method-level discovery first (`callgraph-list-methods` / `callgraph-search-method` / `callgraph-analyze-callgraph` -> `callgraph-get-method-source`).
-- Distinguish lookup from explanation:
-  - exact symbol/file lookup: stay in CallGraph as long as possible
-  - semantic behavior/debugging questions: use CallGraph to narrow candidates, then inspect the concrete implementation that actually shapes data, filters, or queries
-- Full-file `Read` is escalation only and requires an explicit reason.
-- Keep full-file reads minimal (smallest relevant file, no broad sweeps).
-- If two consecutive full-file reads yield no new findings, stop and checkpoint before further reads.
-- Use Haiku subagents for bounded sidecar work (inventory/extraction), not final synthesis/tradeoff decisions.
-- Keep parallel subagents small and independent; default max 2 unless justified.
-- Reuse an existing subagent/thread for related follow-up questions instead of spawning a new one each time.
-
-## Token-Safe Context Protocol
-- Treat tool output as evidence, not prompt payload.
-- Maintain an evidence ledger with compact rows: `E<ID> | command | scope | key result | confidence`.
-- Never paste raw CallGraph tables or full method bodies into parent/subagent prompts unless explicitly requested.
-- For method-content evidence, quote only the smallest span needed and include `filePath:line`.
-- Before rerunning discovery, check whether an equivalent command already ran in this session.
-- Rerun only when scope changed or prior output was inconclusive, and state the one-line rerun reason.
-- Subagent handoffs must be delta-only: `goal | owned scope | known evidence (E-ids) | unknowns | stop condition`.
-- Subagents must return only net-new evidence rows, conflicts, and unresolved unknowns.
-- Keep parallel subagents disjoint by ownership (files/classes/method sets) to avoid duplicate reads.
-- Use compact checkpoint matrices: `file | method | finding | risk | confidence | evidence`.
+Index scope note: CallGraph indexing/analysis excludes test projects and the source files in those test
+projects.

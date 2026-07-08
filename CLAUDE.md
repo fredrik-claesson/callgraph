@@ -8,8 +8,8 @@ CallGraph is a .NET 10 CLI that indexes C# solutions with Roslyn into a local SQ
 
 CallGraph is designed to improve coding-agent precision and reduce token usage for C# work:
 
-- Agents and developers run targeted local analysis/search commands instead of scanning large code chunks in prompts.
-- Bundled templates in `_claude`, `_codex`, `_cursor`, and `_copilot` standardize how agents invoke CallGraph workflows.
+- Agents and developers run targeted local `query`/`analyze` commands against a pre-built index instead of scanning large code chunks in prompts.
+- A bundled `_claude` template with two skills (`callgraph-sql`, `callgraph-analyze-callgraph`) standardizes how agents invoke CallGraph workflows.
 - The result is faster, more accurate code navigation and dependency understanding across large solutions.
 
 ## Build and Run
@@ -20,33 +20,31 @@ dotnet build CallGraph.csproj
 # Index once
 dotnet run --project CallGraph.csproj -- --index "/path/to/solution.sln"
 
-# Reindex
+# Reindex (git-aware and incremental: snapshot fast-path, git-diff incremental, timestamp fallback)
 dotnet run --project CallGraph.csproj -- --reindex "/path/to/solution.sln"
 
-# Watch
-dotnet run --project CallGraph.csproj -- --watch "/path/to/solution.sln"
+# Clear the index
+dotnet run --project CallGraph.csproj -- --clear
 ```
 
 ## Analysis Commands
 
 ```bash
-dotnet run --project CallGraph.csproj -- list-solutions
-dotnet run --project CallGraph.csproj -- search-file --pattern "*Controller.cs"
-dotnet run --project CallGraph.csproj -- search-method --keywords "login authentication"
+dotnet run --project CallGraph.csproj -- query "SELECT COUNT(*) FROM Methods"
 dotnet run --project CallGraph.csproj -- analyze --filepath "/abs/path/to/File.cs" --depth 1
-dotnet run --project CallGraph.csproj -- list-unused --projectPath "/abs/path/to/Project.csproj" --filePath "/abs/path/to/File.cs"
-dotnet run --project CallGraph.csproj -- list-warnings --projectPath "/abs/path/to/Project.csproj" --filePath "/abs/path/to/File.cs"
 ```
 
 ## Project Structure
 
 - `Core/Indexing` - indexing pipeline and SQLite store
-- `Core/Analysis` - graph analysis and streamlined JSON responses
-- `Core/Diagnostics` - warning/unused diagnostic collection
-- `Core/Solutions` - solution/project loading and cache
-- `Core/Watching` - file-system watcher and incremental reindexing
+- `Core/Analysis` - graph analysis and streamlined output
+- `Core/Git` - git-aware incremental reindexing support
+- `Core/Projects` - project loading
+- `Core/Solutions` - solution loading and cache
+- `Core/Output` - CLI output formatting
 - `Contracts` - request/response contracts
-- `Program.cs` - CLI entrypoint and subcommand handling
+- `Cli` - CLI entrypoint, argument parsing, and subcommand execution
+- `Program.cs` - process entrypoint
 
 ## Key Behavior
 
@@ -54,7 +52,8 @@ dotnet run --project CallGraph.csproj -- list-warnings --projectPath "/abs/path/
 - Visibility modes for analysis:
   - `external`: class-based depth
   - `internal`: method-based depth
-- `list-unused` and `list-warnings` reuse solution context cache when possible.
+- `query` runs read-only SQL against the indexed SQLite database; the `callgraph-sql` skill documents the schema (7 tables) and example queries.
+- `analyze` performs recursive call-graph traversal; the `callgraph-analyze-callgraph` skill documents usage.
 
 ## Testing
 

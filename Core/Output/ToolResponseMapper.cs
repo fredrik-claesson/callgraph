@@ -4,50 +4,6 @@ namespace CallGraph.Core.Output;
 
 public static class ToolResponseMapper
 {
-    public static SearchFileToolResponse ToSearchFileResponse(IReadOnlyList<SearchFileMatch> matches)
-    {
-        var rows = matches
-            .Select(static match => new SearchFileToolRow(match.FilePath))
-            .ToList();
-
-        return new SearchFileToolResponse(rows.Count, rows);
-    }
-
-    public static SearchMethodToolResponse ToSearchMethodResponse(IReadOnlyList<SearchMethodMatch> matches)
-    {
-        var rows = matches
-            .Select(static match => new SearchMethodToolRow(
-                ExtractMethodName(match.Method.Display, match.Method.Id),
-                match.Method.Display,
-                match.Method.FilePath,
-                match.Method.StartLine,
-                match.Method.ContainingType))
-            .ToList();
-
-        return new SearchMethodToolResponse(rows.Count, rows);
-    }
-
-    public static DiagnosticToolResponse ToDiagnosticResponse(
-        IReadOnlyList<Diagnostic> diagnostics,
-        int totalCount)
-    {
-        var rows = diagnostics
-            .Select(static diagnostic => new DiagnosticToolRow(
-                diagnostic.Id,
-                diagnostic.Severity,
-                diagnostic.Message,
-                diagnostic.FilePath,
-                diagnostic.StartLine,
-                diagnostic.StartColumn,
-                diagnostic.EndLine,
-                diagnostic.EndColumn))
-            .ToList();
-
-        return new DiagnosticToolResponse(
-            totalCount,
-            rows);
-    }
-
     public static AnalyzeToolResponse ToAnalyzeResponse(Graph graph)
     {
         var methodIds = graph.Nodes

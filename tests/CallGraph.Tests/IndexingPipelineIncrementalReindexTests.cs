@@ -489,35 +489,6 @@ public sealed class IndexingPipelineIncrementalReindexTests
             CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SolutionProjectMatch>>(Array.Empty<SolutionProjectMatch>());
 
-        public Task<IReadOnlyList<SearchFileMatch>> SearchFilesAsync(
-            string pattern,
-            bool useRegex,
-            string? solutionPath,
-            string? solutionId,
-            string? folderPath,
-            string? filePath,
-            CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<SearchFileMatch>>(Array.Empty<SearchFileMatch>());
-
-        public Task<IReadOnlyList<SearchMethodMatch>> SearchMethodsAsync(
-            string pattern,
-            bool useRegex,
-            string? solutionPath,
-            string? solutionId,
-            string? folderPath,
-            string? filePath,
-            CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<SearchMethodMatch>>(Array.Empty<SearchMethodMatch>());
-
-        public Task<IReadOnlyList<SearchMethodMatch>> ListMethodsAsync(
-            string visibility,
-            string? solutionPath,
-            string? solutionId,
-            string? folderPath,
-            string? filePath,
-            CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<SearchMethodMatch>>(Array.Empty<SearchMethodMatch>());
-
         public Task<Node?> GetMethodAsync(string solutionPath, string methodKey, CancellationToken cancellationToken)
             => Task.FromResult<Node?>(null);
 

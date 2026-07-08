@@ -1,7 +1,5 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CallGraph.Contracts;
 using CallGraph.Core.Solutions;
 using Microsoft.Data.Sqlite;
@@ -24,9 +22,7 @@ public sealed class SqliteIndexStore : IIndexStore
     public SqliteIndexStore(IOptions<IndexStoreOptions> options)
     {
         var configuredPath = options.Value.DatabasePath;
-        _dbPath = string.IsNullOrWhiteSpace(configuredPath)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CallGraph", "index.db")
-            : configuredPath;
+        _dbPath = IndexDatabaseLocator.Resolve(configuredPath);
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken)
@@ -397,269 +393,6 @@ public sealed class SqliteIndexStore : IIndexStore
         return matches;
     }
 
-    public async Task<IReadOnlyList<SearchFileMatch>> SearchFilesAsync(
-        string pattern,
-        bool useRegex,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken)
-    {
-        var normalizedPath = string.IsNullOrWhiteSpace(solutionPath) ? null : GetPathCandidates(solutionPath);
-        var normalizedFolderPath = string.IsNullOrWhiteSpace(folderPath) ? null : GetPathCandidates(folderPath);
-        var normalizedFilePath = string.IsNullOrWhiteSpace(filePath) ? null : GetPathCandidates(filePath);
-
-        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand();
-        var resolvedSolutionIdFromPath = normalizedPath is null
-            ? null
-            : await ResolveSolutionIdAsync(conn, normalizedPath, cancellationToken).ConfigureAwait(false);
-
-        var conditions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(solutionId))
-        {
-            conditions.Add("s.Id = $id");
-            cmd.Parameters.AddWithValue("$id", solutionId);
-        }
-
-        if (normalizedPath is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(resolvedSolutionIdFromPath))
-            {
-                conditions.Add("s.Id = $pathResolvedId");
-                cmd.Parameters.AddWithValue("$pathResolvedId", resolvedSolutionIdFromPath);
-            }
-            else
-            {
-                conditions.Add("(s.Path = $pathAbs COLLATE NOCASE OR s.Path = $pathStored COLLATE NOCASE)");
-                cmd.Parameters.AddWithValue("$pathAbs", normalizedPath.AbsolutePath);
-                cmd.Parameters.AddWithValue("$pathStored", normalizedPath.StoredPath);
-            }
-        }
-
-        if (normalizedFolderPath is not null)
-        {
-            conditions.Add("(f.Path LIKE $folderPathAbs ESCAPE '\\' COLLATE NOCASE OR f.Path LIKE $folderPathStored ESCAPE '\\' COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$folderPathAbs", EscapeLikePattern(normalizedFolderPath.AbsolutePath) + "%");
-            cmd.Parameters.AddWithValue("$folderPathStored", EscapeLikePattern(normalizedFolderPath.StoredPath) + "%");
-        }
-
-        if (normalizedFilePath is not null)
-        {
-            conditions.Add("(f.Path = $filePathAbs COLLATE NOCASE OR f.Path = $filePathStored COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$filePathAbs", normalizedFilePath.AbsolutePath);
-            cmd.Parameters.AddWithValue("$filePathStored", normalizedFilePath.StoredPath);
-        }
-
-        if (useRegex)
-        {
-            conditions.Add("f.Path REGEXP $pattern");
-            cmd.Parameters.AddWithValue("$pattern", pattern);
-        }
-        else if (TryGetSuffixOnlyPattern(pattern, out var suffix))
-        {
-            // Optimize suffix-only wildcard queries (e.g. "*Foo.cs") by using
-            // the indexed reverse path instead of a leading-wildcard scan on Path.
-            var suffixReverse = EscapeLikePattern(ReversePathValue(suffix));
-            conditions.Add("f.ReversePath LIKE $suffixReverse || '%' ESCAPE '\\' COLLATE NOCASE");
-            cmd.Parameters.AddWithValue("$suffixReverse", suffixReverse);
-        }
-        else
-        {
-            conditions.Add("f.Path LIKE $pattern ESCAPE '\\' COLLATE NOCASE");
-            cmd.Parameters.AddWithValue("$pattern", ConvertWildcardToLike(pattern));
-        }
-
-        cmd.CommandText = $"""
-            SELECT s.Id, s.Path, f.Path
-            FROM Solutions s
-            INNER JOIN Files f ON f.SolutionId = s.Id
-            WHERE {string.Join(" AND ", conditions)}
-            ORDER BY s.Path, f.Path;
-            """;
-
-        var matches = new List<SearchFileMatch>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            matches.Add(new SearchFileMatch(
-                reader.GetString(0),
-                ToRuntimePath(reader.GetString(1)),
-                ToRuntimePath(reader.GetString(2))));
-        }
-
-        return matches;
-    }
-
-    public async Task<IReadOnlyList<SearchMethodMatch>> SearchMethodsAsync(
-        string pattern,
-        bool useRegex,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken)
-    {
-        var normalizedPath = string.IsNullOrWhiteSpace(solutionPath) ? null : GetPathCandidates(solutionPath);
-        var normalizedFolderPath = string.IsNullOrWhiteSpace(folderPath) ? null : GetPathCandidates(folderPath);
-        var normalizedFilePath = string.IsNullOrWhiteSpace(filePath) ? null : GetPathCandidates(filePath);
-
-        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand();
-        var resolvedSolutionIdFromPath = normalizedPath is null
-            ? null
-            : await ResolveSolutionIdAsync(conn, normalizedPath, cancellationToken).ConfigureAwait(false);
-
-        var conditions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(solutionId))
-        {
-            conditions.Add("s.Id = $id");
-            cmd.Parameters.AddWithValue("$id", solutionId);
-        }
-
-        if (normalizedPath is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(resolvedSolutionIdFromPath))
-            {
-                conditions.Add("s.Id = $pathResolvedId");
-                cmd.Parameters.AddWithValue("$pathResolvedId", resolvedSolutionIdFromPath);
-            }
-            else
-            {
-                conditions.Add("(s.Path = $pathAbs COLLATE NOCASE OR s.Path = $pathStored COLLATE NOCASE)");
-                cmd.Parameters.AddWithValue("$pathAbs", normalizedPath.AbsolutePath);
-                cmd.Parameters.AddWithValue("$pathStored", normalizedPath.StoredPath);
-            }
-        }
-
-        if (normalizedFolderPath is not null)
-        {
-            conditions.Add("(m.FilePath LIKE $folderPathAbs ESCAPE '\\' COLLATE NOCASE OR m.FilePath LIKE $folderPathStored ESCAPE '\\' COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$folderPathAbs", EscapeLikePattern(normalizedFolderPath.AbsolutePath) + "%");
-            cmd.Parameters.AddWithValue("$folderPathStored", EscapeLikePattern(normalizedFolderPath.StoredPath) + "%");
-        }
-
-        if (normalizedFilePath is not null)
-        {
-            conditions.Add("(m.FilePath = $filePathAbs COLLATE NOCASE OR m.FilePath = $filePathStored COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$filePathAbs", normalizedFilePath.AbsolutePath);
-            cmd.Parameters.AddWithValue("$filePathStored", normalizedFilePath.StoredPath);
-        }
-
-        if (useRegex)
-        {
-            conditions.Add("(m.Key REGEXP $pattern OR m.Display REGEXP $pattern)");
-            cmd.Parameters.AddWithValue("$pattern", pattern);
-        }
-        else
-        {
-            conditions.Add("(m.Key LIKE $pattern ESCAPE '\\' COLLATE NOCASE OR m.Display LIKE $pattern ESCAPE '\\' COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$pattern", ConvertWildcardToLike(pattern));
-        }
-
-        cmd.CommandText = $"""
-            SELECT s.Id, s.Path, m.Key, m.FilePath, m.Kind, m.Display, m.ContainingType, m.StartLine, m.Accessibility
-            FROM Solutions s
-            INNER JOIN Methods m ON m.SolutionId = s.Id
-            WHERE {string.Join(" AND ", conditions)}
-            ORDER BY s.Path, m.Key;
-            """;
-
-        var matches = new List<SearchMethodMatch>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            matches.Add(ReadSearchMethodMatch(reader));
-        }
-
-        return matches;
-    }
-
-    public async Task<IReadOnlyList<SearchMethodMatch>> ListMethodsAsync(
-        string visibility,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken)
-    {
-        var normalizedPath = string.IsNullOrWhiteSpace(solutionPath) ? null : GetPathCandidates(solutionPath);
-        var normalizedFolderPath = string.IsNullOrWhiteSpace(folderPath) ? null : GetPathCandidates(folderPath);
-        var normalizedFilePath = string.IsNullOrWhiteSpace(filePath) ? null : GetPathCandidates(filePath);
-        var includeInternal = string.Equals(visibility, "internal", StringComparison.OrdinalIgnoreCase);
-
-        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand();
-        var resolvedSolutionIdFromPath = normalizedPath is null
-            ? null
-            : await ResolveSolutionIdAsync(conn, normalizedPath, cancellationToken).ConfigureAwait(false);
-
-        var conditions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(solutionId))
-        {
-            conditions.Add("s.Id = $id");
-            cmd.Parameters.AddWithValue("$id", solutionId);
-        }
-
-        if (normalizedPath is not null)
-        {
-            if (!string.IsNullOrWhiteSpace(resolvedSolutionIdFromPath))
-            {
-                conditions.Add("s.Id = $pathResolvedId");
-                cmd.Parameters.AddWithValue("$pathResolvedId", resolvedSolutionIdFromPath);
-            }
-            else
-            {
-                conditions.Add("(s.Path = $pathAbs COLLATE NOCASE OR s.Path = $pathStored COLLATE NOCASE)");
-                cmd.Parameters.AddWithValue("$pathAbs", normalizedPath.AbsolutePath);
-                cmd.Parameters.AddWithValue("$pathStored", normalizedPath.StoredPath);
-            }
-        }
-
-        if (normalizedFolderPath is not null)
-        {
-            conditions.Add("(m.FilePath LIKE $folderPathAbs ESCAPE '\\' COLLATE NOCASE OR m.FilePath LIKE $folderPathStored ESCAPE '\\' COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$folderPathAbs", EscapeLikePattern(normalizedFolderPath.AbsolutePath) + "%");
-            cmd.Parameters.AddWithValue("$folderPathStored", EscapeLikePattern(normalizedFolderPath.StoredPath) + "%");
-        }
-
-        if (normalizedFilePath is not null)
-        {
-            conditions.Add("(m.FilePath = $filePathAbs COLLATE NOCASE OR m.FilePath = $filePathStored COLLATE NOCASE)");
-            cmd.Parameters.AddWithValue("$filePathAbs", normalizedFilePath.AbsolutePath);
-            cmd.Parameters.AddWithValue("$filePathStored", normalizedFilePath.StoredPath);
-        }
-
-        if (!includeInternal)
-        {
-            conditions.Add("""
-                (
-                    m.Accessibility = 'public' COLLATE NOCASE OR
-                    m.Accessibility = 'protected' COLLATE NOCASE OR
-                    m.Accessibility = 'protected internal' COLLATE NOCASE
-                )
-                """);
-        }
-
-        cmd.CommandText = $"""
-            SELECT s.Id, s.Path, m.Key, m.FilePath, m.Kind, m.Display, m.ContainingType, m.StartLine, m.Accessibility
-            FROM Solutions s
-            INNER JOIN Methods m ON m.SolutionId = s.Id
-            {(conditions.Count > 0 ? $"WHERE {string.Join(" AND ", conditions)}" : string.Empty)}
-            ORDER BY s.Path, m.Key;
-            """;
-
-        var matches = new List<SearchMethodMatch>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            matches.Add(ReadSearchMethodMatch(reader));
-        }
-
-        return matches;
-    }
-
     public async Task<Node?> GetMethodAsync(string solutionPath, string methodKey, CancellationToken cancellationToken)
     {
         var pathCandidates = GetPathCandidates(solutionPath);
@@ -919,7 +652,6 @@ public sealed class SqliteIndexStore : IIndexStore
         var conn = new SqliteConnection($"Data Source={_dbPath}");
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
         await EnsureInitializedAsync(conn, cancellationToken).ConfigureAwait(false);
-        RegisterRegexFunction(conn);
         return conn;
     }
 
@@ -1606,67 +1338,11 @@ public sealed class SqliteIndexStore : IIndexStore
         }
     }
 
-    private static string ConvertWildcardToLike(string pattern)
-    {
-        var builder = new StringBuilder(pattern.Length);
-        foreach (var ch in pattern)
-        {
-            builder.Append(ch switch
-            {
-                '*' => '%',
-                '?' => '_',
-                '%' => "\\%",
-                '_' => "\\_",
-                '\\' => "\\\\",
-                _ => ch.ToString()
-            });
-        }
-        return builder.ToString();
-    }
-
-    private static bool TryGetSuffixOnlyPattern(string pattern, out string suffix)
-    {
-        suffix = string.Empty;
-
-        if (string.IsNullOrEmpty(pattern) || pattern.Length < 2 || pattern[0] != '*')
-            return false;
-
-        var remainder = pattern[1..];
-        if (remainder.IndexOf('*') >= 0 || remainder.IndexOf('?') >= 0)
-            return false;
-
-        suffix = remainder;
-        return true;
-    }
-
     private static string ReversePathValue(string value)
     {
         var chars = value.ToCharArray();
         Array.Reverse(chars);
         return new string(chars);
-    }
-
-    private static void RegisterRegexFunction(SqliteConnection conn)
-    {
-        conn.CreateFunction<string?, string?, bool>(
-            "regexp",
-            (pattern, input) =>
-            {
-                if (string.IsNullOrEmpty(pattern) || string.IsNullOrEmpty(input))
-                    return false;
-
-                try
-                {
-                    return Regex.IsMatch(
-                        input,
-                        pattern,
-                        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-                }
-                catch (ArgumentException)
-                {
-                    return false;
-                }
-            });
     }
 
     private static async Task<SolutionRow?> LoadSolutionByIdAsync(
@@ -1727,21 +1403,6 @@ public sealed class SqliteIndexStore : IIndexStore
 
         return nodes;
     }
-
-    private static SearchMethodMatch ReadSearchMethodMatch(SqliteDataReader reader)
-        => new(
-            reader.GetString(0),
-            ToRuntimePath(reader.GetString(1)),
-            new Node
-            {
-                Id = reader.GetString(2),
-                FilePath = reader.IsDBNull(3) ? null : ToRuntimePath(reader.GetString(3)),
-                Kind = reader.GetString(4),
-                Display = reader.IsDBNull(5) ? null : reader.GetString(5),
-                ContainingType = reader.IsDBNull(6) ? null : reader.GetString(6),
-                StartLine = reader.IsDBNull(7) ? null : reader.GetInt32(7),
-                Accessibility = reader.IsDBNull(8) ? null : reader.GetString(8)
-            });
 
     private static async Task<List<Edge>> LoadEdgesAsync(
         SqliteConnection conn,
