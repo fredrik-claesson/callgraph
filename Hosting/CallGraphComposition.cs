@@ -4,7 +4,6 @@ using CallGraph.Core.Extraction;
 using CallGraph.Core.Git;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
-using CallGraph.Core.Search;
 using CallGraph.Core.Solutions;
 using Microsoft.Build.Locator;
 using Microsoft.Extensions.Configuration;
@@ -37,8 +36,6 @@ public static class CallGraphComposition
     {
         services.Configure<IndexStoreOptions>(configuration.GetSection("IndexStore"));
         services.Configure<DiagnosticCollectorOptions>(configuration.GetSection("Diagnostics"));
-        services.Configure<HybridMethodSearchOptions>(configuration.GetSection("MethodSearch"));
-        services.Configure<LocalBgeOptions>(configuration.GetSection("SemanticSearch:BgeSmallEnV15"));
 
         services.AddSingleton<IIndexJobStore, InMemoryIndexJobStore>();
         services.AddSingleton<IIndexJobQueue, InMemoryIndexJobQueue>();
@@ -51,8 +48,6 @@ public static class CallGraphComposition
         services.AddSingleton<IFileIndexer, FileIndexer>();
         services.AddSingleton<IIndexStore, SqliteIndexStore>();
         services.AddSingleton<IGitRepositoryInspector, GitRepositoryInspector>();
-        services.AddSingleton<ISemanticEmbedder, BgeSmallEnV15SemanticEmbedder>();
-        services.AddSingleton<IHybridMethodSearchService, HybridMethodSearchService>();
         services.AddSingleton<IIndexingPipeline, IndexingPipeline>();
         services.AddSingleton<ISolutionIndexer, QueueingSolutionIndexer>();
 

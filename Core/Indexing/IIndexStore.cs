@@ -21,29 +21,6 @@ public interface IIndexStore
     Task<IReadOnlyList<SolutionProjectMatch>> FindProjectsByPathSuffixAsync(
         string relativeProjectPath,
         CancellationToken cancellationToken);
-    Task<IReadOnlyList<SearchFileMatch>> SearchFilesAsync(
-        string pattern,
-        bool useRegex,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken);
-    Task<IReadOnlyList<SearchMethodMatch>> SearchMethodsAsync(
-        string pattern,
-        bool useRegex,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken);
-    Task<IReadOnlyList<SearchMethodMatch>> ListMethodsAsync(
-        string visibility,
-        string? solutionPath,
-        string? solutionId,
-        string? folderPath,
-        string? filePath,
-        CancellationToken cancellationToken);
     Task<Node?> GetMethodAsync(string solutionPath, string methodKey, CancellationToken cancellationToken);
     Task<IReadOnlyList<Edge>> GetEdgesAsync(string solutionPath, string methodKey, CancellationToken cancellationToken);
     Task UpdateFileAsync(string solutionPath, FileIndex update, CancellationToken cancellationToken);
