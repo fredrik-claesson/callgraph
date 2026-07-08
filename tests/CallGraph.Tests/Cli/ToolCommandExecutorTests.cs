@@ -54,7 +54,7 @@ public sealed class ToolCommandExecutorTests
         services.AddSingleton<IGraphAnalyzer>(new NullGraphAnalyzer());
         services.AddSingleton(Options.Create(new IndexStoreOptions { DatabasePath = databasePath }));
         var provider = services.BuildServiceProvider();
-        return new ToolCommandExecutor(provider, null!);
+        return new ToolCommandExecutor(provider);
     }
 
     private sealed class NullGraphAnalyzer : IGraphAnalyzer

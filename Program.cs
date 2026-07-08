@@ -43,9 +43,8 @@ public static class Program
         using var host = builder.Build();
 
         var services = host.Services;
-        var indexStore = services.GetRequiredService<CallGraph.Core.Indexing.IIndexStore>();
         var cancellationToken = CancellationToken.None;
-        var executor = new ToolCommandExecutor(services, indexStore);
+        var executor = new ToolCommandExecutor(services);
 
         var result = await executor.ExecuteAsync(tool, cancellationToken).ConfigureAwait(false);
         WriteToolExecutionResult(result);

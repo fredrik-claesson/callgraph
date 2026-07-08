@@ -17,12 +17,10 @@ internal sealed class ToolCommandExecutor
     };
 
     private readonly IServiceProvider _services;
-    private readonly IIndexStore _indexStore;
 
-    public ToolCommandExecutor(IServiceProvider services, IIndexStore indexStore)
+    public ToolCommandExecutor(IServiceProvider services)
     {
         _services = services;
-        _indexStore = indexStore;
     }
 
     public async Task<ToolExecutionResult> ExecuteAsync(ToolCommand tool, CancellationToken cancellationToken)
