@@ -1,6 +1,4 @@
 using CallGraph.Core.Analysis;
-using CallGraph.Core.Diagnostics;
-using CallGraph.Core.Extraction;
 using CallGraph.Core.Git;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
@@ -35,7 +33,6 @@ public static class CallGraphComposition
         bool includeHostedServices = true)
     {
         services.Configure<IndexStoreOptions>(configuration.GetSection("IndexStore"));
-        services.Configure<DiagnosticCollectorOptions>(configuration.GetSection("Diagnostics"));
 
         services.AddSingleton<IIndexJobStore, InMemoryIndexJobStore>();
         services.AddSingleton<IIndexJobQueue, InMemoryIndexJobQueue>();
@@ -54,9 +51,6 @@ public static class CallGraphComposition
         services.AddSingleton<ITargetResolver, TargetResolver>();
         services.AddSingleton<IGraphBuilder, GraphBuilder>();
         services.AddSingleton<IGraphAnalyzer, GraphAnalyzer>();
-
-        services.AddSingleton<IDiagnosticCollector, DiagnosticCollector>();
-        services.AddSingleton<IMethodSourceExtractor, MethodSourceExtractor>();
 
         if (includeHostedServices)
         {
