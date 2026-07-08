@@ -45,6 +45,33 @@ For Windows, use `-r win-x64` (or your target RID).
 
 See [QUICKSTART.md](QUICKSTART.md) for a full walkthrough.
 
+## Using CallGraph on a repository
+
+CallGraph operates on a repository's **solution file** (`.sln`). The index lives in one global SQLite
+database keyed by each solution's absolute path, so you run the CLI from anywhere and can index
+several repositories side by side.
+
+```bash
+# 1. Find the solution(s) in your repo
+cd /path/to/your-repo
+find . -name '*.sln'
+
+# 2. Index it (Roslyn loads the solution; test projects are skipped automatically)
+callgraph --index "$(pwd)/src/YourApp.sln"
+
+# 3. Navigate the code without opening files
+callgraph query "SELECT Display, FilePath, StartLine FROM Methods WHERE ContainingType LIKE '%OrderService'"
+callgraph analyze --filepath "$(pwd)/src/YourApp/OrderService.cs" --method PlaceOrder --direction outbound
+
+# 4. Keep the index current as the repo changes
+callgraph --reindex
+```
+
+If a repository has multiple solutions, index each one; `query` then spans all indexed solutions and can
+be filtered by `SolutionId` (see [Database Schema](#database-schema)). To let a coding agent drive
+CallGraph automatically inside your repos, install the bundled skills once with `./deploy.sh` (see
+[Bundled Skills](#bundled-skills)).
+
 ## CLI Usage
 
 ```bash
@@ -80,6 +107,15 @@ Two Claude skills ship under `_claude/skills/`:
 
 - **`callgraph-sql`** — documents the full DB schema and worked `query` examples (find files/methods/types, one-hop callers/callees).
 - **`callgraph-analyze-callgraph`** — documents `analyze` usage for multi-hop call-graph traversal.
+
+Install them into your user-level Claude config so a coding agent picks them up in any repository:
+
+```bash
+./deploy.sh
+```
+
+This copies the bundled `_claude` folder (the two skills plus a short CallGraph usage note) into
+`~/.claude`. The `callgraph` executable must be on your `PATH`.
 
 ## Visibility Modes
 
