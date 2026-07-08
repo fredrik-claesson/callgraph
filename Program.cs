@@ -25,48 +25,13 @@ public static class Program
         }
 
         if (options.ToolCommand is not null)
-        {
-            var tool = options.ToolCommand;
-            if (DaemonCommandRunner.IsStatusCommand(tool))
-                return await DaemonCommandRunner.HandleStatusCommandAsync(tool).ConfigureAwait(false);
-
-            if (DaemonCommandRunner.IsStopCommand(tool))
-                return await DaemonCommandRunner.HandleStopCommandAsync(tool).ConfigureAwait(false);
-
-            if (DaemonCommandRunner.IsServeCommand(tool))
-                return await DaemonCommandRunner.RunServeCommandAsync(args, tool, CreateHostBuilder).ConfigureAwait(false);
-
-            if (DaemonCommandRunner.ShouldUseDaemon(tool))
-            {
-                var pipeName = DaemonCommandRunner.GetDefaultPipeName();
-                var daemonResult = await DaemonCommandRunner.ExecuteViaDaemonWithAutoStartAsync(tool, pipeName)
-                    .ConfigureAwait(false);
-                if (daemonResult is not null)
-                {
-                    if (DaemonCommandRunner.ShouldFallbackToLocalExecution(daemonResult, tool))
-                        return await RunToolLocallyAsync(args, tool).ConfigureAwait(false);
-
-                    DaemonCommandRunner.WriteToolExecutionResult(daemonResult);
-                    return daemonResult.ExitCode;
-                }
-            }
-
-            return await RunToolLocallyAsync(args, tool).ConfigureAwait(false);
-        }
+            return await RunToolLocallyAsync(args, options.ToolCommand).ConfigureAwait(false);
 
         var normalized = LifecycleCommandRunner.NormalizeLifecycleOptions(options);
         if (normalized.Error is not null)
         {
             CliCommandLine.PrintUsage(normalized.Error);
             return 1;
-        }
-
-        if (normalized.Action is CliAction.Reindex && !normalized.WatchEnabled)
-        {
-            var daemonExitCode = await DaemonCommandRunner.TryRunReindexViaDaemonAsync(args, normalized, CreateHostBuilder)
-                .ConfigureAwait(false);
-            if (daemonExitCode.HasValue)
-                return daemonExitCode.Value;
         }
 
         return await LifecycleCommandRunner.RunLifecycleAsync(args, normalized, CreateHostBuilder).ConfigureAwait(false);
@@ -83,8 +48,17 @@ public static class Program
         var executor = new ToolCommandExecutor(services, indexStore);
 
         var result = await executor.ExecuteAsync(tool, cancellationToken).ConfigureAwait(false);
-        DaemonCommandRunner.WriteToolExecutionResult(result);
+        WriteToolExecutionResult(result);
         return result.ExitCode;
+    }
+
+    private static void WriteToolExecutionResult(ToolExecutionResult result)
+    {
+        if (!string.IsNullOrWhiteSpace(result.Stdout))
+            Console.WriteLine(result.Stdout);
+
+        if (!string.IsNullOrWhiteSpace(result.Stderr))
+            Console.Error.WriteLine(result.Stderr);
     }
 
     private static HostApplicationBuilder CreateHostBuilder(string[] args, bool includeHostedServices)

@@ -22,4 +22,17 @@ public sealed class CliCommandLineTests
         Assert.False(CliCommandLine.TryParse(new[] { "--watch" }, out _, out var err));
         Assert.NotNull(err);
     }
+
+    [Fact]
+    public void Parse_AnalyzeCallgraphAlias_NormalizesToAnalyze()
+    {
+        var parsed = CliCommandLine.TryParse(
+            new[] { "analyze-callgraph", "--filepath", "/tmp/Foo.cs" },
+            out var options,
+            out var error);
+
+        Assert.True(parsed);
+        Assert.Null(error);
+        Assert.Equal("analyze", options.ToolCommand?.Name);
+    }
 }
