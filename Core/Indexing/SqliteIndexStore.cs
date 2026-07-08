@@ -24,9 +24,7 @@ public sealed class SqliteIndexStore : IIndexStore
     public SqliteIndexStore(IOptions<IndexStoreOptions> options)
     {
         var configuredPath = options.Value.DatabasePath;
-        _dbPath = string.IsNullOrWhiteSpace(configuredPath)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CallGraph", "index.db")
-            : configuredPath;
+        _dbPath = IndexDatabaseLocator.Resolve(configuredPath);
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken)
