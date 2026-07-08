@@ -1,9 +1,28 @@
 ---
 name: callgraph-analyze-callgraph
-description: Run CallGraph analysis for a C# file (optionally a method) via CLI and summarize inbound/outbound calls.
+description: Run multi-hop CallGraph traversal for a C# file/method via CLI to map inbound/outbound calls — for blast-radius and hot-path reachability ("what breaks if I change this", "does A reach B"), following interface/property/delegate dispatch that text search misses. For one-hop caller/callee lists or consumer counts use callgraph-sql; for symbol existence/definition use ck.
 ---
 
 # C# Analyze Call Graph
+
+## When to use this
+Use `analyze` when the question needs **multi-hop traversal** of the call graph:
+- **Blast radius / hot-path reachability** — "if I change or remove this method, what upstream flows
+  break?" An inbound trace surfaces the real entry points (controllers, jobs, event handlers) and shows
+  whether a change reaches a *charge/payment hot path* vs. only a read screen.
+- **Reachability between two areas** — does anything under module A eventually call into method B?
+- **Following a value/effect across layers** — narrow candidate hops, then confirm the sink by reading source.
+
+`analyze` traverses **all** edge kinds, including interface, property/accessor, and delegate dispatch — so
+it finds callers that reach a component through a typed accessor (`context.Foo.Bar()`), which text search
+(`grep`/`ck refs` on the type name) structurally cannot see. That indirection-awareness is the main reason
+to prefer it over source scanning for reachability questions.
+
+Prefer the **`callgraph-sql`** skill instead when you only need **one-hop** caller/callee lists or
+**counts/breadth** (e.g. "how many modules call `IFooComponent`") — that's a single `Edges` join, no
+traversal. And note the shared blind spot of both tools: dependencies with **no C# call edge** — raw SQL
+(table names in strings), reflection, dynamic LINQ, DB-side procedures — are invisible to the graph; find
+those with `ck`/`rg` text search and combine.
 
 ## Inputs
 Parse the user request for:
