@@ -21,6 +21,9 @@ if [[ -x "$SCRIPT_DIR/scripts/clean-distributables.sh" ]]; then
   "$SCRIPT_DIR/scripts/clean-distributables.sh"
 fi
 
-copy_content "$SCRIPT_DIR/_claude" "$HOME/.claude"
+# Install only the bundled skills into the user's Claude config.
+# We intentionally do NOT copy _claude/CLAUDE.md, so an existing
+# ~/.claude/CLAUDE.md (the user's global instructions) is never overwritten.
+copy_content "$SCRIPT_DIR/_claude/skills" "$HOME/.claude/skills"
 
-echo "Done."
+echo "Done. Installed CallGraph skills to $HOME/.claude/skills."

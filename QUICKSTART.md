@@ -15,7 +15,15 @@ dotnet publish ./CallGraph.csproj -c Release -r osx-arm64 -o ./publish
 This produces a single executable `CallGraph` (or `CallGraph.exe` on Windows) in `./publish/`.
 For Windows, use `-r win-x64` (or your target RID).
 
-Run it directly from `./publish/`, or copy/symlink it onto your `PATH` as `callgraph`.
+Put it on your `PATH` as `callgraph`. Prefer a **symlink** so it stays current when you re-publish:
+
+```bash
+ln -sf "$(pwd)/publish/CallGraph" ~/.local/bin/callgraph   # ~/.local/bin must be on PATH
+```
+
+(A plain copy goes stale — after the next `dotnet publish` you'd still be running the old binary. Verify
+what you're running with `callgraph --help`; the usage should list `--index`, `--reindex`, `--clear`,
+`query`, and `analyze`.)
 
 Verify:
 
@@ -126,10 +134,11 @@ Install them once into your user-level Claude config so they apply across all yo
 ./deploy.sh
 ```
 
-This copies the bundled `_claude` folder (the two skills plus a short CallGraph usage note) into
-`~/.claude`. After that, Claude Code picks up the skills automatically whenever you work in a C# repo
-whose solution you have indexed — no per-repo setup needed. (The `callgraph` executable must be on your
-`PATH`; see [Build and publish](#build-and-publish).)
+This copies the two skills into `~/.claude/skills/` (it does **not** touch your existing
+`~/.claude/CLAUDE.md`). Run it as yourself — not with `sudo` — since it writes into your home directory.
+After that, Claude Code picks up the skills automatically whenever you work in a C# repo whose solution
+you have indexed — no per-repo setup needed. (The `callgraph` executable must be on your `PATH`; see
+[Build and publish](#build-and-publish).)
 
 ## Configuration
 

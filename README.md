@@ -114,8 +114,9 @@ Install them into your user-level Claude config so a coding agent picks them up 
 ./deploy.sh
 ```
 
-This copies the bundled `_claude` folder (the two skills plus a short CallGraph usage note) into
-`~/.claude`. The `callgraph` executable must be on your `PATH`.
+This copies the two skills into `~/.claude/skills/`; it does **not** touch your existing
+`~/.claude/CLAUDE.md`. Run it as yourself (not `sudo`), and make sure the `callgraph` executable is on
+your `PATH`.
 
 ## Visibility Modes
 
