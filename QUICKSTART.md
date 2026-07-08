@@ -1,6 +1,6 @@
 # QUICKSTART
 
-Get CallGraph running end-to-end with CLI-only workflow.
+Get CallGraph running end-to-end.
 
 ## Requirements
 
@@ -15,112 +15,81 @@ dotnet publish ./CallGraph.csproj -c Release -r osx-arm64 -o ./publish
 This produces a single executable `CallGraph` (or `CallGraph.exe` on Windows) in `./publish/`.
 For Windows, use `-r win-x64` (or your target RID).
 
-## Install shim and skills
-
-Run installer from publish output:
-
-```bash
-./CallGraph install
-```
-
-Windows:
-
-```powershell
-.\CallGraph.exe install
-```
-
-Installer behavior:
-- Copies bundled `_claude`, `_codex`, `_cursor`, `_copilot`, `_opencode` only when matching target directories already exist (`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.config/opencode`).
-- Overwrites existing skill/agent/command files in those directories with the bundled versions.
-- Never auto-merges `AGENTS.md`/`CLAUDE.md`; prints manual instructions when template sections should be added.
-- Configures Claude `PreToolUse` hook in `~/.claude/settings.json` (idempotent) to rewrite high-confidence C# shell searches to `callgraph` commands.
-- For Copilot CLI, installs reusable assets in `~/.copilot` and prints a manual step for enabling repository hooks from `.github/hooks/*.json`.
-- For OpenCode, installs reusable skills/agents/commands/plugins in `~/.config/opencode` including plugin-based hook policy.
-- Bundles PR2 deep-review assets:
-  - skill: `pr2-deep-pr-review` (Claude/Codex/Copilot/OpenCode)
-  - command: `/pr2-deep-pr-review` (Cursor/OpenCode)
-- Installs `callgraph` shim:
-  - macOS: installs executable copy in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`) for reboot-safe behavior
-  - Linux: installs symlink in first writable directory already on `PATH` (fallback: `~/.local/bin/callgraph`)
-  - macOS/Linux: removes duplicate `callgraph` symlinks on PATH (keeps the newly installed shim when it is a symlink)
-  - Windows: `%LocalAppData%\Programs\callgraph\callgraph.exe`
-- Updates Windows user `PATH` automatically (new terminals).
-- On macOS/Linux, prints a `PATH` export line if `~/.local/bin` is not currently on `PATH`.
-
-Hook tuning (optional):
-- Claude hook fallback threshold: `CLAUDE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- Copilot hook fallback threshold: `COPILOT_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- OpenCode plugin fallback threshold: `OPENCODE_CALLGRAPH_FALLBACK_AFTER_FAILURES` (default `2`)
-- Set a threshold to `0` to disable shell fallback after repeated CallGraph failures.
-- Claude policy mode: `CLAUDE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- Copilot policy mode: `COPILOT_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- OpenCode policy mode: `OPENCODE_CALLGRAPH_POLICY_MODE=warn|deny` (default `warn`)
-- Claude warn redirect: `CLAUDE_CALLGRAPH_WARN_REDIRECT=0|1` (default `1`)
-- Hooks also emit hints when the same `callgraph` command is repeated in-session, to reduce duplicate read/context churn.
-- Hooks also gate `git commit` with a self-review decision marker:
-  - review approved path: `CALLGRAPH_GIT_SELF_REVIEW=approved git commit ...`
-  - user skipped review path: `CALLGRAPH_GIT_SELF_REVIEW=skip git commit ...`
-  - PowerShell: `$env:CALLGRAPH_GIT_SELF_REVIEW='approved'; git commit ...` (or `'skip'`)
-  - without marker, commit is blocked and the agent is instructed to run the PR2 deep-review workflow (8 explicit review passes + parallel sub-agent validation + final recommendation) before approving commit.
+Run it directly from `./publish/`, or copy/symlink it onto your `PATH` as `callgraph`.
 
 Verify:
 
 ```bash
-callgraph --help
+./publish/CallGraph --help
 ```
 
-## Analysis commands
+## Index a solution
 
 ```bash
-# List indexed solutions
-callgraph list-solutions   # auto-starts daemon on first call
-
-# Search file/method
-callgraph search-file --pattern "*Controller.cs"
-callgraph search-method --keywords "login authentication"
-callgraph rewrite --command "find /abs/src -name \"*Controller.cs\""
-callgraph list-methods --solutionPath "/abs/path/to/solution.sln"   # defaults to --visibility external; signatures are refreshed live
-
-# Analyze call graph
-callgraph analyze --filepath "/abs/path/to/File.cs" --depth 1 --direction bi-directional --visibility external
-
-# Extract exact live method content from file
-callgraph get-method-source --filePath "/abs/path/to/File.cs" --methodName "GetBalanceAccountAsync" --containingType "Demo.AdyenBalanceCommunicationComponent" --mode body_only
-
-# Diagnostics
-callgraph list-unused --projectPath "/abs/path/to/MyProject.csproj" --filePath "/abs/path/to/File.cs"
-callgraph list-warnings --projectPath "/abs/path/to/MyProject.csproj" --filePath "/abs/path/to/File.cs"
+callgraph --index /abs/path/to/solution.sln
 ```
 
+This builds the SQLite index at the default location (see [Configuration](#configuration) below). Indexing
+is required before `query` or `analyze` will work.
+
+## Keep the index current
+
+```bash
+# Reindex the same solution (git-aware, incremental)
+callgraph --reindex
+
+# Reindex a specific solution
+callgraph --reindex /abs/path/to/solution.sln
+```
+
+## Query the index
+
+```bash
+callgraph query "SELECT Path FROM Files WHERE Path LIKE '%Controller.cs'"
+callgraph query "SELECT Display, FilePath, StartLine FROM Methods WHERE Display LIKE '%Login%'"
+```
+
+- `query` runs read-only SQL against the index; write statements are rejected.
+- Output is tab-separated: a header line of column names, then one row per result.
+- See the `callgraph-sql` skill (`_claude/skills/callgraph-sql/SKILL.md`) for the full schema and more worked examples.
+
+## Analyze a call graph
+
+```bash
+callgraph analyze --filepath "/abs/path/to/File.cs" --depth 1 --direction bi-directional --visibility external
+```
+
+- Defaults: `--depth 1`, `--direction bi-directional`, `--visibility external`.
+- Auto-selects the indexed solution when exactly one solution is indexed; otherwise pass `--solutionPath` or `--solutionId`.
+- See the `callgraph-analyze-callgraph` skill (`_claude/skills/callgraph-analyze-callgraph/SKILL.md`) for usage guidance.
+
 Output notes:
-- `search-file`: plain text, one file path per line
-- `search-method` and `list-methods`: plain text rows
-  `<filePath[:line]>\t<containingType>\t<methodName>\t<signature>`
 - `analyze`: plain text rows
   - `M\t<methodId>\t<filePath[:line]>\t<containingType>\t<methodName>`
   - `C\t<callerMethodId>\t<calleeMethodId>\t<direction>`
-- `get-method-source`: structured JSON with line/byte spans and selected method content
 
-## Optional daemon control
+## Clear the index
 
 ```bash
-# Start daemon explicitly (optional)
-callgraph serve
-
-# Check if daemon is running
-callgraph status
-
-# Stop daemon
-callgraph stop
+callgraph --clear
 ```
 
-By default, `serve` watches all currently indexed solutions. Use `callgraph serve --no-watch-indexed` if you want daemon caching without watcher overhead.
-By default, `serve` exits after 10 hours of inactivity. Override with `callgraph serve --idleMinutes <n>`.
+## Configuration
 
-## Optional install flags
+Default index location:
+- Windows: `%LocalAppData%\CallGraph\index.db`
+- macOS: `~/Library/Application Support/CallGraph/index.db`
 
-- `--skip-skills`: only install command shim
-- `--skip-shim`: only deploy `_claude`/`_codex`/`_cursor`/`_copilot`/`_opencode`
-- `--skip-path`: Windows only, do not update user PATH
-- `--home <path>`: alternate home directory
-- `--binDir <path>`: alternate shim install directory
+Override with configuration:
+
+```json
+{
+  "IndexStore": {
+    "DatabasePath": "D:\\path\\to\\index.db"
+  }
+}
+```
+
+## Notes
+
+- Test projects are excluded from indexing/analysis.
