@@ -31,11 +31,6 @@ internal static class LifecycleCommandRunner
 
         if (normalized.Action is CliAction.Index)
         {
-            normalized = normalized with
-            {
-                ActionPath = normalized.ActionPath ?? normalized.WatchPath
-            };
-
             if (normalized.ActionPath is null)
             {
                 await host.StopAsync().ConfigureAwait(false);
@@ -51,7 +46,6 @@ internal static class LifecycleCommandRunner
             normalized = normalized with
             {
                 ActionPath = normalized.ActionPath ??
-                             normalized.WatchPath ??
                              await ResolveIndexedSolutionAsync(indexStore, "--reindex", cancellationToken).ConfigureAwait(false)
             };
 
@@ -86,7 +80,7 @@ internal static class LifecycleCommandRunner
     public static NormalizedLifecycleOptions NormalizeLifecycleOptions(CliOptions options)
     {
         if (options.ClearEnabled)
-            return new NormalizedLifecycleOptions(CliAction.Clear, null, null, false, true);
+            return new NormalizedLifecycleOptions(CliAction.Clear, null, true);
 
         var actionPath = options.IndexPath ?? options.ReindexPath;
         var action = options.IndexPath is not null
@@ -96,7 +90,7 @@ internal static class LifecycleCommandRunner
                 : CliAction.None;
 
         if (action is CliAction.None)
-            return new NormalizedLifecycleOptions(null, null, null, "Specify --index, --reindex, --clear, or a subcommand.");
+            return new NormalizedLifecycleOptions(null, null, "Specify --index, --reindex, --clear, or a subcommand.");
 
         if (actionPath is not null)
         {
@@ -106,12 +100,12 @@ internal static class LifecycleCommandRunner
 
             var normalizedPath = CliInputHelpers.NormalizeSolutionPath(actionPath, optionName);
             if (normalizedPath.Error is not null)
-                return new NormalizedLifecycleOptions(null, null, null, normalizedPath.Error);
+                return new NormalizedLifecycleOptions(null, null, normalizedPath.Error);
 
             actionPath = normalizedPath.Path;
         }
 
-        return new NormalizedLifecycleOptions(action, actionPath, null, false, false);
+        return new NormalizedLifecycleOptions(action, actionPath, false);
     }
 
     public static async Task<string?> ResolveIndexedSolutionAsync(

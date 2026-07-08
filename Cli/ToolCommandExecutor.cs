@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CallGraph.Contracts;
 using CallGraph.Core.Analysis;
 using CallGraph.Core.Indexing;
@@ -28,8 +27,6 @@ internal sealed class ToolCommandExecutor
         if (!SupportsCommand(tool.Name))
             return ToolExecutionResult.FromError($"Unknown command: {tool.Name}");
 
-        var graphAnalyzer = _services.GetRequiredService<IGraphAnalyzer>();
-
         switch (tool.Name)
         {
             case "query":
@@ -40,6 +37,8 @@ internal sealed class ToolCommandExecutor
             }
             case "analyze":
             {
+                var graphAnalyzer = _services.GetRequiredService<IGraphAnalyzer>();
+
                 if (!TryGetRequired(tool.Options, "filepath", out var filepath, out var filepathError))
                     return ToolExecutionResult.FromError(filepathError!);
                 filepath = NormalizeRequiredPath(filepath);
@@ -134,9 +133,6 @@ internal sealed record ToolExecutionResult(int ExitCode, string? Stdout, string?
 {
     public static ToolExecutionResult FromText(string? text)
         => new(0, text, null);
-
-    public static ToolExecutionResult FromPayload(object payload, JsonSerializerOptions options)
-        => new(0, JsonSerializer.Serialize(payload, options), null);
 
     public static ToolExecutionResult FromError(string message)
         => new(1, null, message);

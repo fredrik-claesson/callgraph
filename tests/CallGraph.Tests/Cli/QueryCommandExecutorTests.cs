@@ -38,4 +38,24 @@ public sealed class QueryCommandExecutorTests
 
         Assert.NotEqual(0, result.ExitCode);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_RendersNullColumnAsEmptyString()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"cg-query-{Guid.NewGuid():N}.db");
+        using (var conn = new SqliteConnection($"Data Source={path}"))
+        {
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "CREATE TABLE Methods(Display TEXT, StartLine INTEGER); " +
+                              "INSERT INTO Methods VALUES(NULL, 7);";
+            cmd.ExecuteNonQuery();
+        }
+
+        var result = await QueryCommandExecutor.ExecuteAsync(
+            "SELECT Display, StartLine FROM Methods", path, CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("Display\tStartLine\n\t7", result.Stdout!.TrimEnd('\n'));
+    }
 }

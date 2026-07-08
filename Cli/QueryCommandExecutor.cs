@@ -29,7 +29,7 @@ internal static class QueryCommandExecutor
             await using var conn = new SqliteConnection(connectionString);
             await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 

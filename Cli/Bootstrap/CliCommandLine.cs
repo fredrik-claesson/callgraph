@@ -36,24 +36,24 @@ internal static class CliCommandLine
             {
                 if (args.Length < 2 || IsOption(args[1]))
                 {
-                    options = new CliOptions(null, false, null, false, null, false, null);
+                    options = new CliOptions(null, false, null, false, null);
                     error = "query requires a SQL statement: callgraph query \"<SQL>\"";
                     return false;
                 }
 
                 var sqlOptions = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase) { ["sql"] = args[1] };
-                options = new CliOptions(null, false, null, false, null, false, new ToolCommand("query", sqlOptions));
+                options = new CliOptions(null, false, null, false, new ToolCommand("query", sqlOptions));
                 error = null;
                 return true;
             }
 
             if (!TryParseToolOptions(args, 1, out var commandOptions, out error))
             {
-                options = new CliOptions(null, false, null, false, null, false, null);
+                options = new CliOptions(null, false, null, false, null);
                 return false;
             }
 
-            options = new CliOptions(null, false, null, false, null, false, new ToolCommand(commandName, commandOptions));
+            options = new CliOptions(null, false, null, false, new ToolCommand(commandName, commandOptions));
             return true;
         }
 
@@ -70,7 +70,7 @@ internal static class CliCommandLine
                 case "--index":
                     if (!TryReadValue(args, ref i, out indexPath, out error))
                     {
-                        options = new CliOptions(null, false, null, false, null, false, null);
+                        options = new CliOptions(null, false, null, false, null);
                         return false;
                     }
                     break;
@@ -87,11 +87,11 @@ internal static class CliCommandLine
                     break;
                 case "--help":
                 case "-h":
-                    options = new CliOptions(null, false, null, false, null, false, null);
+                    options = new CliOptions(null, false, null, false, null);
                     error = null;
                     return false;
                 default:
-                    options = new CliOptions(null, false, null, false, null, false, null);
+                    options = new CliOptions(null, false, null, false, null);
                     error = $"Unknown argument: {arg}";
                     return false;
             }
@@ -99,12 +99,12 @@ internal static class CliCommandLine
 
         if (indexPath is not null && reindexEnabled)
         {
-            options = new CliOptions(null, false, null, false, null, false, null);
+            options = new CliOptions(null, false, null, false, null);
             error = "Use either --index or --reindex, not both.";
             return false;
         }
 
-        options = new CliOptions(indexPath, reindexEnabled, reindexPath, false, null, clearEnabled, null);
+        options = new CliOptions(indexPath, reindexEnabled, reindexPath, clearEnabled, null);
         error = null;
         return true;
     }
@@ -192,8 +192,6 @@ internal sealed record CliOptions(
     string? IndexPath,
     bool ReindexEnabled,
     string? ReindexPath,
-    bool WatchEnabled,
-    string? WatchPath,
     bool ClearEnabled,
     ToolCommand? ToolCommand);
 
@@ -208,14 +206,12 @@ internal enum CliAction
 internal sealed record NormalizedLifecycleOptions(
     CliAction? Action,
     string? ActionPath,
-    string? WatchPath,
-    bool WatchEnabled,
     bool ClearEnabled)
 {
     public string? Error { get; init; }
 
-    public NormalizedLifecycleOptions(CliAction? action, string? actionPath, string? watchPath, string? error = null)
-        : this(action, actionPath, watchPath, false, false)
+    public NormalizedLifecycleOptions(CliAction? action, string? actionPath, string? error = null)
+        : this(action, actionPath, false)
     {
         Error = error;
     }
