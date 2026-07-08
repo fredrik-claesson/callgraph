@@ -2,7 +2,6 @@ using CallGraph.Cli;
 using CallGraph.Contracts;
 using CallGraph.Core.Indexing;
 using CallGraph.Core.Solutions;
-using CallGraph.Core.Watching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,7 +25,6 @@ internal static class LifecycleCommandRunner
 
         var indexer = services.GetRequiredService<ISolutionIndexer>();
         var jobStore = services.GetRequiredService<IIndexJobStore>();
-        var watcherRegistry = services.GetRequiredService<ISolutionWatcherRegistry>();
         var indexStore = services.GetRequiredService<IIndexStore>();
 
         var exit = 0;
@@ -79,20 +77,6 @@ internal static class LifecycleCommandRunner
         {
             await host.StopAsync().ConfigureAwait(false);
             return exit;
-        }
-
-        if (normalized.WatchEnabled)
-        {
-            if (normalized.WatchPath is null)
-            {
-                await host.StopAsync().ConfigureAwait(false);
-                return 1;
-            }
-
-            await watcherRegistry.EnsureWatchingAsync(normalized.WatchPath, slnOnly: true, cancellationToken)
-                .ConfigureAwait(false);
-            logger.LogInformation("Watching {SolutionPath}. Press Ctrl+C to stop.", normalized.WatchPath);
-            await host.WaitForShutdownAsync().ConfigureAwait(false);
         }
 
         await host.StopAsync().ConfigureAwait(false);
@@ -162,19 +146,6 @@ internal static class LifecycleCommandRunner
                 return solutions[choice - 1].SolutionPath;
 
             Console.WriteLine($"Invalid selection. Enter a number between 1 and {solutions.Count}.");
-        }
-    }
-
-    public static async Task EnsureWatchingAllIndexedSolutionsAsync(
-        IIndexStore indexStore,
-        ISolutionWatcherRegistry watcherRegistry,
-        CancellationToken cancellationToken)
-    {
-        var solutions = await indexStore.ListSolutionsAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var solution in solutions)
-        {
-            await watcherRegistry.EnsureWatchingAsync(solution.SolutionPath, solution.SlnOnly, cancellationToken)
-                .ConfigureAwait(false);
         }
     }
 

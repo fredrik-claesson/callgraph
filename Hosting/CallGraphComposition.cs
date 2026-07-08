@@ -6,7 +6,6 @@ using CallGraph.Core.Indexing;
 using CallGraph.Core.Projects;
 using CallGraph.Core.Search;
 using CallGraph.Core.Solutions;
-using CallGraph.Core.Watching;
 using Microsoft.Build.Locator;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,15 +63,9 @@ public static class CallGraphComposition
         services.AddSingleton<IDiagnosticCollector, DiagnosticCollector>();
         services.AddSingleton<IMethodSourceExtractor, MethodSourceExtractor>();
 
-        // Register watcher services in all modes so CLI daemon (`serve`) can opt into watching
-        // without requiring hosted-service startup. Hosted registration stays conditional below.
-        services.AddSingleton<SolutionWatcherHost>();
-        services.AddSingleton<ISolutionWatcherRegistry>(sp => sp.GetRequiredService<SolutionWatcherHost>());
-
         if (includeHostedServices)
         {
             services.AddHostedService<IndexJobRunner>();
-            services.AddHostedService(sp => sp.GetRequiredService<SolutionWatcherHost>());
         }
 
         return services;
