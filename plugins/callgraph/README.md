@@ -19,8 +19,11 @@ plugins/callgraph/
 │   └── <rid>/CallGraph[.exe]       # self-contained binaries (gitignored — built on demand)
 └── scripts/
     ├── build-binaries.sh           # publish per-RID binaries into bin/<rid>/
-    └── package-plugin.sh           # build + tar a redistributable archive into dist/
+    └── package-plugin.sh           # tar a self-contained marketplace archive into ../dist/
 ```
+
+> Packaged archives are written to `plugins/dist/` (a sibling of this directory), **not** inside the
+> plugin, so a local-path marketplace install never copies the archive into the installed plugin cache.
 
 When the plugin is active, `bin/` is added to the Bash tool's `PATH`, so the skills invoke
 `callgraph …` and the launcher runs the correct binary for the host OS/arch. The skills are byte-for-byte
@@ -43,11 +46,20 @@ plugins/callgraph/scripts/build-binaries.sh osx-arm64 linux-x64
 Because the binaries are not committed, hand off a packaged archive (binaries included):
 
 ```bash
-plugins/callgraph/scripts/package-plugin.sh          # -> plugins/callgraph/dist/callgraph-plugin-<version>.tar.gz
+plugins/callgraph/scripts/package-plugin.sh          # -> plugins/dist/callgraph-marketplace-<version>.tar.gz
 ```
 
-The recipient unpacks it and points a marketplace at the directory, or installs from this repo's
-marketplace manifest (`.claude-plugin/marketplace.json` at the repo root):
+The archive unpacks to a directory that IS a self-contained marketplace
+(`.claude-plugin/marketplace.json` + `callgraph/`). The recipient unpacks it anywhere and points a
+marketplace at that directory:
+
+```
+tar -xzf callgraph-marketplace-<version>.tar.gz -C ~/some/dir
+/plugin marketplace add ~/some/dir/callgraph-marketplace
+/plugin install callgraph@callgraph-marketplace
+```
+
+Or, straight from this repo's root marketplace manifest (`.claude-plugin/marketplace.json`):
 
 ```
 /plugin marketplace add fredrik-claesson/callgraph
