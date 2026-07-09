@@ -80,3 +80,6 @@ secrets.json
 .dotnet_cli/.dotnet/10.0.102.aspNetCertificateSentinel
 .dotnet_cli/.dotnet/10.0.102.dotnetFirstUseSentinel
 .dotnet_cli/.dotnet/10.0.102.toolpath.sentinel
+
+## ck tool index cache
+.ck-index/
