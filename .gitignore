@@ -52,6 +52,15 @@ TestResults/
 **/publish/
 **/AppPackages/
 
+## CallGraph plugin: bin/ is already ignored by the global **/[Bb]in/ rule above.
+## Re-include the launcher scripts, but keep the built per-RID binary folders and
+## packaged archives ignored.
+!plugins/callgraph/bin/
+plugins/callgraph/bin/*/
+!plugins/callgraph/bin/callgraph
+!plugins/callgraph/bin/callgraph.cmd
+plugins/callgraph/dist/
+
 ## OS / misc
 .DS_Store
 Thumbs.db

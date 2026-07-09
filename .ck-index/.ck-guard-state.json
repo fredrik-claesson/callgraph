@@ -1,0 +1,21 @@
+{
+  "keywordMapSeen": true,
+  "pendingKeywordMap": false,
+  "pendingQuery": "",
+  "lastFindFilesCommand": "/Users/fredrik.claesson/.ck/bin/ck find-files \"clear index reindex cli command dispatch argument\" --task \"Find CLI command dispatch for index clear reindex\" 2>/dev/null | head -20",
+  "lastExpandFolderCommand": "",
+  "noMatchFolder": "",
+  "noMatchCount": 0,
+  "knownTargetFile": "",
+  "knownTargetFolder": "",
+  "knownTargetFrom": "",
+  "expandFolderCount": 0,
+  "signaturesFolderCount": 1,
+  "scopedFolders": [],
+  "recentSearchToken": "plugin",
+  "recentSearchCount": 1,
+  "recentSearchFirstTs": 1783632743,
+  "lastBuildCheckCommand": "",
+  "lastBuildCheckTs": 0,
+  "lastBuildCheckTree": ""
+}

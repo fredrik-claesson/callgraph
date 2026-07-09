@@ -1,0 +1,16 @@
+{
+  "name": "callgraph-marketplace",
+  "owner": {
+    "name": "Fredrik Claesson",
+    "email": "fredrik.claesson@mews.com"
+  },
+  "plugins": [
+    {
+      "name": "callgraph",
+      "source": "./plugins/callgraph",
+      "description": "CallGraph: Roslyn-indexed C# call-graph analysis over a local SQLite index, with a bundled CLI binary and two skills.",
+      "version": "1.0.0",
+      "keywords": ["csharp", "roslyn", "call-graph", "code-navigation", "sqlite"]
+    }
+  ]
+}

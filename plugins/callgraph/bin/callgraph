@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# CallGraph plugin launcher. The plugin's bin/ directory is added to the Bash
+# tool's PATH while the plugin is active, so skills invoke `callgraph ...` and
+# this script dispatches to the correct self-contained binary for the host
+# platform (built into bin/<rid>/ by scripts/build-binaries.sh).
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+os="$(uname -s)"
+arch="$(uname -m)"
+case "$os" in
+  Darwin)
+    case "$arch" in
+      arm64) rid="osx-arm64" ;;
+      x86_64) rid="osx-x64" ;;
+      *) echo "callgraph: unsupported macOS architecture: $arch" >&2; exit 1 ;;
+    esac ;;
+  Linux)
+    case "$arch" in
+      x86_64|amd64) rid="linux-x64" ;;
+      *) echo "callgraph: unsupported Linux architecture: $arch" >&2; exit 1 ;;
+    esac ;;
+  *)
+    echo "callgraph: unsupported OS '$os' (Windows uses callgraph.cmd)" >&2
+    exit 1 ;;
+esac
+
+exe="$DIR/$rid/CallGraph"
+if [[ ! -x "$exe" ]]; then
+  echo "callgraph: no bundled binary for '$rid' at $exe" >&2
+  echo "Build it with: plugins/callgraph/scripts/build-binaries.sh $rid" >&2
+  exit 1
+fi
+
+exec "$exe" "$@"
