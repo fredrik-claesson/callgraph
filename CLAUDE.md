@@ -20,7 +20,7 @@ dotnet build CallGraph.csproj
 # Index once
 dotnet run --project CallGraph.csproj -- --index "/path/to/solution.sln"
 
-# Reindex (git-aware and incremental: snapshot fast-path, git-diff incremental, timestamp fallback)
+# Reindex (full re-index of the solution; --reindex is an alias for a scoped clear-and-index)
 dotnet run --project CallGraph.csproj -- --reindex "/path/to/solution.sln"
 
 # Clear the index
@@ -38,7 +38,7 @@ dotnet run --project CallGraph.csproj -- analyze --filepath "/abs/path/to/File.c
 
 - `Core/Indexing` - indexing pipeline and SQLite store
 - `Core/Analysis` - graph analysis and streamlined output
-- `Core/Git` - git-aware incremental reindexing support
+- `Core/Git` - git repository inspection (records HEAD commit on the index)
 - `Core/Projects` - project loading
 - `Core/Solutions` - solution loading and cache
 - `Core/Output` - CLI output formatting
@@ -52,7 +52,8 @@ dotnet run --project CallGraph.csproj -- analyze --filepath "/abs/path/to/File.c
 - Visibility modes for analysis:
   - `external`: class-based depth
   - `internal`: method-based depth
-- `query` runs read-only SQL against the indexed SQLite database; the `callgraph-sql` skill documents the schema (7 tables) and example queries.
+- `--reindex` is an alias for a full re-index of the solution (scoped clear-and-index); it is not incremental.
+- `query` runs read-only SQL against the indexed SQLite database; the `callgraph-sql` skill documents the schema (6 tables) and example queries.
 - `analyze` performs recursive call-graph traversal; the `callgraph-analyze-callgraph` skill documents usage.
 
 ## Testing

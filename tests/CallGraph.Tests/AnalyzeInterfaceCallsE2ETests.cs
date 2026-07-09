@@ -30,7 +30,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -109,7 +108,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -190,7 +188,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -245,7 +242,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -307,7 +303,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -368,7 +363,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -429,7 +423,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -490,7 +483,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -547,7 +539,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -610,7 +601,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -661,7 +651,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -746,7 +735,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);
@@ -808,7 +796,6 @@ public sealed class AnalyzeInterfaceCallsE2ETests
             var pipeline = new IndexingPipeline(
                 solutionLoader,
                 new ProjectIndexer(),
-                new FileIndexer(solutionLoader),
                 graphBuilder,
                 indexStore,
                 NullLogger<IndexingPipeline>.Instance);

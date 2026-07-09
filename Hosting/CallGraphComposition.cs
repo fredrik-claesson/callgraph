@@ -42,7 +42,6 @@ public static class CallGraphComposition
         services.AddSingleton<ISolutionLoader, SolutionLoader>();
         services.AddSingleton<ISolutionContextCache, SolutionContextCache>();
         services.AddSingleton<IProjectIndexer, ProjectIndexer>();
-        services.AddSingleton<IFileIndexer, FileIndexer>();
         services.AddSingleton<IIndexStore, SqliteIndexStore>();
         services.AddSingleton<IGitRepositoryInspector, GitRepositoryInspector>();
         services.AddSingleton<IIndexingPipeline, IndexingPipeline>();

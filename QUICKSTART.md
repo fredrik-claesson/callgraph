@@ -66,7 +66,7 @@ changes, keep the index current with `--reindex` (next section).
 ## Keep the index current
 
 ```bash
-# Reindex the same solution (git-aware, incremental)
+# Reindex the same solution (full re-index)
 callgraph --reindex
 
 # Reindex a specific solution

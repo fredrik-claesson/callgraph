@@ -2,7 +2,7 @@
 
 CallGraph is a local-first .NET CLI that indexes a C# solution with Roslyn into a SQLite database, giving coding agents and developers fast, compiler-accurate SQL lookups and call graph analysis — without scanning source files in prompts.
 
-> **Indexing is required.** All analysis commands operate against a local index. Run `callgraph --index /path/to/solution.sln` once to bootstrap. After that, reindex on demand with `callgraph --reindex` (git-aware and incremental). See [QUICKSTART.md](QUICKSTART.md) to get up and running.
+> **Indexing is required.** All analysis commands operate against a local index. Run `callgraph --index /path/to/solution.sln` once to bootstrap. After that, refresh on demand with `callgraph --reindex` (a full re-index of the solution). See [QUICKSTART.md](QUICKSTART.md) to get up and running.
 
 ## Features
 
@@ -25,7 +25,7 @@ CallGraph is a local-first .NET CLI that indexes a C# solution with Roslyn into 
 | **Dispatch resolution (interface / property / delegate / message / event)** | Indexed | Resolves calls made through an **interface reference, accessor property, delegate, or published message** to their concrete target(s) — so a caller that reaches a component via DI/accessor indirection (e.g. `context.Payments.Get(...)` where `Payments` is typed `IFooComponent`) is captured. **Text search on a type name cannot find these** because the source never writes the concrete type; CallGraph can |
 | **Inbound / outbound / bi-directional analysis** | Indexed | Blast-radius analysis (inbound) vs. dependency tracing (outbound) without conflation |
 | **File path + line numbers on all results** | Indexed | Every result is directly navigable — no ambiguity about which overload or which file |
-| **Git-aware incremental reindex** | Indexed | Restores from snapshots when switching to a previously-indexed commit; otherwise uses git diff to detect changed files and reprocesses only those — index stays synchronized without a full rescan |
+| **Full reindex** | Indexed | `--reindex` performs a full re-index of the solution, replacing that solution's rows in a single transaction so the index stays consistent |
 | **Test project exclusion** | N/A (policy applied at index time) | Skips test projects entirely during indexing — reduces index size and reindex time |
 | **SQLite-backed index store** | Indexed | Persistent on-disk index survives restarts without re-indexing the solution |
 
@@ -79,7 +79,7 @@ CallGraph automatically inside your repos, install the bundled skills once with 
 # Index once
 callgraph --index /path/to/solution.sln
 
-# Reindex (git-aware, incremental)
+# Reindex (full re-index of the solution)
 callgraph --reindex [/path/to/solution.sln]
 
 # Clear the index database
@@ -93,7 +93,7 @@ callgraph analyze --filepath /abs/file.cs [--method MethodName] [--depth 1] [--d
 ```
 
 Notes:
-- `--reindex` with no path reindexes the current (or only) indexed solution; otherwise it targets the given `.sln`.
+- `--reindex` with no path reindexes the current (or only) indexed solution; otherwise it targets the given `.sln`. It performs a full re-index (equivalent to a scoped clear-and-index of that solution).
 - `query` opens the index database **read-only**; write statements (INSERT/UPDATE/DELETE/DDL) are rejected with a non-zero exit and an error on stderr.
 - `query` output is tab-separated: a header line of column names, then one tab-separated row per result.
 - `analyze` defaults to depth `1`, direction `bi-directional`, and visibility `external` when the corresponding flags are omitted.
@@ -143,7 +143,7 @@ Override with configuration:
 
 ## Database Schema
 
-The index is a SQLite database with 7 tables:
+The index is a SQLite database with 6 tables:
 
 - `Solutions(Id, Path, IndexedAtUtc, HeadCommit, SlnOnly)`
 - `Projects(SolutionId, Path, ReversePath)`
@@ -151,7 +151,6 @@ The index is a SQLite database with 7 tables:
 - `Methods(Key, SolutionId, FilePath, Kind, Display, ContainingType, StartLine, Accessibility)`
 - `Edges(FromKey, ToKey, Direction, Kind, SolutionId)`
 - `SolutionAliases(SolutionId, AliasPath)`
-- `SolutionSnapshots(SolutionId, HeadCommit, IndexedAtUtc, PayloadJson)`
 
 See the `callgraph-sql` skill for column-by-column documentation and worked query examples, including:
 
@@ -240,7 +239,7 @@ above.
   - When counting total inbound edges of a concrete method, expect both `calls-direct` (calls on a
     concrete-typed reference) and `calls-via-interface` (interface-dispatched) — don't double-count the
     same logical call across the interface method and its implementation.
-- `--reindex` is git-aware and incremental: it first tries to restore from a saved snapshot if the current HEAD commit has been indexed before; otherwise, it computes changed files via git diff between the last-indexed commit and current HEAD and reprocesses only those. When git info is unavailable, it falls back to timestamp-based incremental reindexing. Full reindex is the last resort when changes exceed a threshold.
+- `--reindex` performs a full re-index of the solution. `SaveAsync` replaces that solution's rows in a single transaction, so a reindex is a scoped clear-and-index. It records the current git HEAD commit on the `Solutions` row but does not do incremental/diff-based updates — a full re-index is consistently faster than the previous incremental path, which paid the full MSBuild workspace load anyway plus per-file diff and DB overhead.
 
 ## Testing
 

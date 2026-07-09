@@ -10,10 +10,7 @@ public interface IIndexStore
     Task<SolutionIndex?> LoadAsync(string solutionPath, CancellationToken cancellationToken);
     Task<IReadOnlyList<SolutionInfo>> ListSolutionsAsync(CancellationToken cancellationToken);
     Task<SolutionInfo?> GetSolutionByPathAsync(string solutionPath, CancellationToken cancellationToken);
-    Task<DateTime?> GetIndexedAtUtcAsync(string solutionPath, CancellationToken cancellationToken);
     Task<SolutionInfo?> GetSolutionByIdAsync(string solutionId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<IndexedFileInfo>> ListFilesAsync(string solutionPath, CancellationToken cancellationToken);
-    Task<IReadOnlyList<string>> ListProjectPathsAsync(string solutionPath, CancellationToken cancellationToken);
     Task<IReadOnlyList<SolutionInfo>> FindSolutionsByFilePathAsync(string filePath, CancellationToken cancellationToken);
     Task<IReadOnlyList<SolutionFileMatch>> FindSolutionsByFilePathSuffixAsync(
         string relativeFilePath,
@@ -23,28 +20,4 @@ public interface IIndexStore
         CancellationToken cancellationToken);
     Task<Node?> GetMethodAsync(string solutionPath, string methodKey, CancellationToken cancellationToken);
     Task<IReadOnlyList<Edge>> GetEdgesAsync(string solutionPath, string methodKey, CancellationToken cancellationToken);
-    Task UpdateFileAsync(string solutionPath, FileIndex update, CancellationToken cancellationToken);
-    Task RemoveFileAsync(string solutionPath, string filePath, CancellationToken cancellationToken);
-
-    Task<string?> GetIndexedHeadCommitAsync(string solutionPath, CancellationToken cancellationToken)
-        => Task.FromResult<string?>(null);
-
-    Task UpdateSolutionMetadataAsync(
-        string solutionPath,
-        DateTime indexedAtUtc,
-        string? headCommit,
-        CancellationToken cancellationToken)
-        => Task.CompletedTask;
-
-    Task<bool> TryRestoreSnapshotAsync(
-        string solutionPath,
-        string headCommit,
-        CancellationToken cancellationToken)
-        => Task.FromResult(false);
-
-    Task SaveSnapshotAsync(
-        string solutionPath,
-        string headCommit,
-        CancellationToken cancellationToken)
-        => Task.CompletedTask;
 }

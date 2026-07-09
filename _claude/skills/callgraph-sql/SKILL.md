@@ -113,14 +113,6 @@ One row per call relationship. Use this table for one-hop caller/callee lookups 
 | `SolutionId` | FK to `Solutions.Id` |
 | `AliasPath` | Alternate path the solution is also known by (e.g. worktree lineage) |
 
-### `SolutionSnapshots`
-| Column | Meaning |
-|---|---|
-| `SolutionId` | FK to `Solutions.Id` |
-| `HeadCommit` | Commit this snapshot was captured at |
-| `IndexedAtUtc` | When the snapshot was recorded |
-| `PayloadJson` | Serialized snapshot payload used for incremental/commit-aware reindexing |
-
 ## Worked examples
 
 Files by name:
