@@ -1,7 +1,7 @@
 {
   "name": "callgraph",
   "displayName": "CallGraph",
-  "description": "Index a C# solution with Roslyn into a local SQLite database, then run fast CLI call-graph queries (callgraph-sql) and multi-hop reachability/blast-radius analysis (callgraph-analyze-callgraph). Bundles the CallGraph CLI binary and both skills.",
+  "description": "Index a C# solution with Roslyn into a local SQLite database, then run fast CLI call-graph queries (callgraph-sql) and multi-hop reachability/blast-radius analysis (callgraph-analyze-callgraph). Run callgraph-setup once to install the CLI binary.",
   "version": "1.0.0",
   "author": {
     "name": "Fredrik Claesson",

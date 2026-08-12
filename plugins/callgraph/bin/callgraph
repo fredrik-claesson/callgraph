@@ -2,8 +2,12 @@
 #
 # CallGraph plugin launcher. The plugin's bin/ directory is added to the Bash
 # tool's PATH while the plugin is active, so skills invoke `callgraph ...` and
-# this script dispatches to the correct self-contained binary for the host
-# platform (built into bin/<rid>/ by scripts/build-binaries.sh).
+# this script finds the binary in one of two locations (in priority order):
+#
+#   1. ~/.callgraph/bin/<rid>/CallGraph  — installed by the callgraph-setup skill
+#   2. <plugin-dir>/<rid>/CallGraph      — bundled locally (dev/CI builds only)
+#
+# Run `/callgraph:callgraph-setup` to install the binary if neither path exists.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,11 +31,16 @@ case "$os" in
     exit 1 ;;
 esac
 
-exe="$DIR/$rid/CallGraph"
-if [[ ! -x "$exe" ]]; then
-  echo "callgraph: no bundled binary for '$rid' at $exe" >&2
-  echo "Build it with: plugins/callgraph/scripts/build-binaries.sh $rid" >&2
+# Prefer the user-installed binary; fall back to a locally bundled one (dev builds).
+user_exe="$HOME/.callgraph/bin/$rid/CallGraph"
+bundled_exe="$DIR/$rid/CallGraph"
+
+if [[ -x "$user_exe" ]]; then
+  exec "$user_exe" "$@"
+elif [[ -x "$bundled_exe" ]]; then
+  exec "$bundled_exe" "$@"
+else
+  echo "callgraph: binary not found for '$rid'." >&2
+  echo "Run the setup skill to install it: /callgraph:callgraph-setup" >&2
   exit 1
 fi
-
-exec "$exe" "$@"

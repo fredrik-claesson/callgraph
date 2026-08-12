@@ -1,5 +1,5 @@
 ---
-name: callgraph-analyze-callgraph
+name: callgraph-analyze
 description: Run multi-hop CallGraph traversal for a C# file/method via CLI to map inbound/outbound calls — for blast-radius and hot-path reachability ("what breaks if I change this", "does A reach B"), following interface/property/delegate dispatch that text search misses. For one-hop caller/callee lists or consumer counts use callgraph-sql; for symbol existence/definition use ck.
 ---
 

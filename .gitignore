@@ -60,8 +60,6 @@ plugins/callgraph/bin/*/
 !plugins/callgraph/bin/callgraph
 !plugins/callgraph/bin/callgraph.cmd
 
-## Packaged plugin archives (output of package-plugin.sh, kept outside the plugin dir)
-plugins/dist/
 
 ## OS / misc
 .DS_Store
