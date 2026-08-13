@@ -8,193 +8,168 @@ description: Query the indexed CallGraph SQLite database directly with read-only
 ## Command
 `callgraph query "<SQL>"`
 
-- Opens the index database **read-only**. Any write statement (INSERT/UPDATE/DELETE/DDL) is rejected.
-- Output is **tab-separated**: the first line is a tab-joined header of column names, followed by one
-  tab-separated row per result record. There is no JSON mode.
-- Non-zero exit on SQL error, with the SQLite error message on stderr.
-- If no index exists yet, the command errors and tells you to run `callgraph --index <sln>` first.
+- Read-only; writes (INSERT/UPDATE/DELETE/DDL) are rejected.
+- Output is **tab-separated** — header row, then one row per record. No JSON mode.
+- Non-zero exit on SQL error (message on stderr). If no index exists, it tells you to run
+  `callgraph --index <sln>`.
 
 ## When to use this (vs. `ck` / text search)
 
-Reach for CallGraph when the question is **who calls whom** — it resolves the *semantic* caller/callee,
-including calls dispatched through an interface, a property/accessor, or a delegate. Best fits:
+The question is **who calls whom**, and CallGraph resolves the *semantic* callee — including calls
+dispatched via interface, property/accessor, or delegate. Best fits: consumer breadth of an
+interface, one-hop blast radius, and **proving a negative** (zero inbound edges = genuinely unused).
 
-- **Consumer breadth of an interface/method** — "how many places, and which modules, actually *call*
-  `IFooComponent`?" Count `DISTINCT ContainingType` of callers; group by module.
-- **Blast radius / reachability** — what breaks if I change/remove `X` (one-hop here; multi-hop via the
-  `analyze` skill).
-- **Proving a negative** — zero inbound edges means the member is genuinely unused (e.g. a "paper seam"
-  interface nobody consumes yet). A real, trustworthy result.
-- **Callers reached through indirection.** This is CallGraph's decisive advantage over grep: when code
-  consumes an interface via a typed accessor (`context.Payments.GetAsync(...)` where `Payments` is typed
-  `IPaymentSuperComponent`), the *source never writes the interface name*, so `grep`/`ck refs` on the
-  interface name **undercounts**. CallGraph resolves the callee's declaring type and counts the call.
-  Whenever a component is exposed via a DI/context accessor property, prefer CallGraph over text search.
+**The decisive advantage over grep** is indirection: when code reaches a component through a typed
+accessor (`context.Payments.GetAsync(...)` where `Payments` is typed `IPaymentSuperComponent`), the
+source never writes the interface name, so grep/`ck refs` undercounts. Prefer CallGraph whenever a
+component is exposed via a DI/context accessor property.
 
-Do **not** use CallGraph for: existence/definition/line-number/inheritance lookups (use `ck`
-find-symbol / get-base-types); or for dependencies that produce **no C# call edge** — raw SQL (table
-names in string literals), reflection, dynamic LINQ, DB-side procedures/views. Those are invisible to
-the graph; find them with `ck`/`rg` text search and combine the two for a complete read census.
+Do **not** use it for symbol existence/definition/inheritance (use `ck`), or for dependencies with
+**no C# call edge** — raw SQL in string literals, reflection, dynamic LINQ, DB-side procedures. Those
+are invisible to the graph; find them with text search and combine.
 
 ## Before you query
 
-1. **Check the index is fresh and pick the right solution.** The DB may hold **more than one** indexed
-   solution (e.g. a tool solution plus your app solution). Run this first and confirm `HeadCommit`
-   matches your current `git rev-parse HEAD`:
-   ```bash
-   callgraph query "SELECT Id, Path, IndexedAtUtc, HeadCommit FROM Solutions"
-   ```
-   If more than one row exists, **filter every query** by that solution's `Id` (`WHERE e.SolutionId='…'`
-   / `m.SolutionId='…'`) or by `FilePath LIKE '%/your-repo/%'` — otherwise callers/callees from an
-   unrelated solution leak into results.
-2. If `HeadCommit` is stale vs your working tree, reindex before trusting edges (`callgraph --reindex <sln>`).
+Confirm freshness and solution scope in one step — the DB may hold **more than one** indexed solution:
+
+```bash
+callgraph query "SELECT Id, Path, IndexedAtUtc, HeadCommit FROM Solutions"
+```
+
+If `HeadCommit` is stale vs `git rev-parse HEAD`, reindex (`callgraph --reindex <sln>`) before
+trusting edges. If more than one row exists, **filter every query** by `SolutionId` — otherwise
+results from an unrelated solution leak in.
 
 ## Schema
 
 ### `Solutions`
-| Column | Meaning |
-|---|---|
-| `Id` | Solution identifier |
-| `Path` | Absolute path to the `.sln` (or project) that was indexed |
-| `IndexedAtUtc` | Timestamp of the last successful index/reindex |
-| `HeadCommit` | Git commit the index reflects |
-| `SlnOnly` | Whether indexing targeted a single project vs a full solution |
+`Id` · `Path` (absolute `.sln`/project path) · `IndexedAtUtc` · `HeadCommit` (commit the index
+reflects) · `SlnOnly` (single project vs full solution).
 
-### `Projects`
-| Column | Meaning |
-|---|---|
-| `SolutionId` | FK to `Solutions.Id` |
-| `Path` | Absolute path to the `.csproj` |
-| `ReversePath` | Path segments reversed (fast suffix/basename matching) |
+### `Projects` / `Files`
+Both: `SolutionId`, `Path`, `ReversePath` (segments reversed, for fast suffix/basename matching).
+`Files` also has `UpdatedAtUtc`. One row per `.csproj` / per indexed source file.
+**Test-project files are excluded from the index.**
 
-### `Files`
-| Column | Meaning |
-|---|---|
-| `SolutionId` | FK to `Solutions.Id` |
-| `Path` | Absolute source file path |
-| `ReversePath` | Path segments reversed (fast suffix/basename matching) |
-| `UpdatedAtUtc` | Last time this file's index entry was refreshed |
-
-One row per indexed source file. Test-project files are excluded.
+### `SolutionAliases`
+`SolutionId` + `AliasPath` — alternate paths a solution is known by (e.g. worktree lineage).
 
 ### `Methods`
 | Column | Meaning |
 |---|---|
-| `Key` | Unique method identifier — used to join against `Edges` |
+| `Key` | Unique method identifier — join target for `Edges` |
 | `SolutionId` | FK to `Solutions.Id` |
-| `FilePath` | Absolute file path containing the method |
-| `Kind` | Member kind. Observed values: `method`, `constructor`, `static-constructor`, `property-get`, `property-set`, `local-function`, `operator`, `conversion-operator`, `event-add`. **Note:** properties appear as `property-get`/`property-set`, so a facade/accessor property (e.g. `Repositories.Payments`) is itself a `Methods` row you can find callers of. |
-| `Display` | Human-readable signature/name for display |
-| `ContainingType` | **Fully-qualified** declaring type (namespace + type), e.g. `Mews.Data.Entities.Repositories.Repositories`. For an interface-dispatched call the `calls-direct` edge's callee `ContainingType` is the **interface** (e.g. `…IPaymentSuperComponent`); a parallel `calls-via-interface` edge points to the concrete **implementation** type (see the `Edges.Kind` dual-edge rule below). Match the interface for consumer-surface questions, the implementation for "which code runs". |
-| `StartLine` | 1-based line number where the member starts |
-| `Accessibility` | public/private/internal/protected etc. |
+| `FilePath` | Absolute file path containing the member |
+| `Kind` | `method`, `constructor`, `static-constructor`, `property-get`, `property-set`, `local-function`, `operator`, `conversion-operator`, `event-add`. **Properties appear as `property-get`/`property-set`**, so a facade accessor (`Repositories.Payments`) is itself a row you can find callers of. |
+| `Display` | Human-readable signature |
+| `ContainingType` | **Fully-qualified** declaring type. For interface-dispatched calls the `calls-direct` callee is the **interface**; a parallel `calls-via-interface` edge points at the concrete **implementation**. Match the interface for consumer-surface questions, the implementation for "which code runs". |
+| `StartLine` | 1-based start line |
+| `Accessibility` | public/private/internal/protected |
 
-One row per method/member. Use this table to find methods/types by name or containing type instead of scanning source.
-
-> **`LIKE` gotcha on `ContainingType`.** `LIKE '%IPaymentSuperComponent%'` matches the interface but not
-> the implementation `PaymentSuperComponent` (the `I` prefix disambiguates) — convenient for isolating
-> interface-dispatched calls. But watch for the reverse: `LIKE '%PaymentComponent%'` also matches
-> `CreditCardPaymentComponent`, etc. Prefer exact `=` on the fully-qualified name when precision matters.
+> **`LIKE` gotcha on `ContainingType`.** `'%IPaymentSuperComponent%'` matches the interface but not
+> the impl `PaymentSuperComponent` — convenient for isolating interface calls. The reverse bites:
+> `'%PaymentComponent%'` also matches `CreditCardPaymentComponent`. Prefer exact `=` when precision
+> matters.
 
 ### `Edges`
 | Column | Meaning |
 |---|---|
-| `FromKey` | FK to `Methods.Key` — the caller |
-| `ToKey` | FK to `Methods.Key` — the callee |
-| `Direction` | Edge direction as stored (see worked examples below for join direction) |
-| `Kind` | Call kind. Values: `calls-direct`, `calls-via-interface`, `calls-via-property-get`, `calls-via-property-set`, `calls-via-delegate`, `calls-via-message`, `calls-via-event-add`, `calls-via-event-remove`, `calls-via-event-handler`. Tells you *how* a call is dispatched. **Dual-edge rule:** a call on an interface-typed reference records **two** edges — a `calls-direct` edge to the *interface* method (the syntactic target) **and** a `calls-via-interface` edge to each concrete *implementation*. So to find an interface's **consumer surface**, query callers of the *interface* method (kind `calls-direct`, `ContainingType='Ns.IFoo'`) — that is the set text search misses when access is via an accessor property; to find **which implementation runs**, follow the `calls-via-interface` edges. `calls-via-property-get/-set` = facade/accessor-property reads; `calls-via-delegate` = method passed as a delegate/lambda. |
+| `FromKey` | FK to `Methods.Key` — the **caller** |
+| `ToKey` | FK to `Methods.Key` — the **callee** |
+| `Direction` | **Constant — every row is `outbound`.** Don't filter on it or infer from it; join direction determines caller vs callee. |
+| `Kind` | How the call dispatches — see below |
 | `SolutionId` | FK to `Solutions.Id` |
 
-One row per call relationship. Use this table for one-hop caller/callee lookups instead of scanning source.
+**`Kind` values and what they mean:**
 
-### `SolutionAliases`
-| Column | Meaning |
-|---|---|
-| `SolutionId` | FK to `Solutions.Id` |
-| `AliasPath` | Alternate path the solution is also known by (e.g. worktree lineage) |
+- `calls-direct` / `calls-via-interface` — **dual-edge rule:** a call on an interface-typed reference
+  records **two** edges: `calls-direct` to the *interface* method (syntactic target) **and**
+  `calls-via-interface` to each concrete *implementation*. Query the interface for **consumer
+  surface** (the set text search misses); follow `calls-via-interface` for **which impl runs**.
+- `calls-via-property-get` / `-set` — facade/accessor-property reads and writes.
+- `calls-via-delegate` — method passed as a delegate/lambda.
+- `calls-via-event-add` / `-remove` / `-handler` — event subscription plumbing.
+- `calls-via-message` — **not a call.** See the callout below before using it anywhere.
+
+> **⚠️ `calls-via-message` is a *may-dispatch* edge — exclude it from aggregate queries.**
+> A dispatch site can't be statically resolved to one handler, so the index records an edge to
+> **every method of every handler-shaped type in the solution**. These are possibilities, not calls.
+> Observed on a large monolith (~632k edges): ~8% of all edges, from 985 source methods, averaging
+> **~49 targets each and peaking at 296**. One command handler's `Handle` linked to 51 targets across
+> 24 unrelated types and called none of them.
+>
+> **Default rule: add `AND e.Kind <> 'calls-via-message'` to anything that counts, groups, aggregates
+> or classifies.** Omitting it silently inflates results and never errors.
+>
+> Query `Kind = 'calls-via-message'` **on its own** for the one question it answers well: *which
+> handlers could process this message?*
+>
+> This one bites harder than the others because grep gives no warning — it finds nothing, so the
+> phantom edge reads as exactly the indirection CallGraph is supposed to catch and grep cannot. Always
+> confirm a cross-module message edge at `FilePath:StartLine` before reporting it.
 
 ## Worked examples
 
-Files by name:
+Resolve a method's `Key` from `Methods` (by `Display`/`ContainingType`/`FilePath`), then:
+
 ```bash
-callgraph query "SELECT Path FROM Files WHERE Path LIKE '%Controller.cs'"
+# callers of a method            (callees: swap FromKey/ToKey)
+callgraph query "SELECT m.Display FROM Edges e JOIN Methods m ON m.Key=e.FromKey WHERE e.ToKey='<key>'"
 ```
 
-Methods by name:
-```bash
-callgraph query "SELECT Display, FilePath, StartLine FROM Methods WHERE Display LIKE '%Login%'"
-```
-
-Methods in a type:
-```bash
-callgraph query "SELECT Display, StartLine FROM Methods WHERE ContainingType='FooService' ORDER BY StartLine"
-```
-
-One-hop callers of a method (who calls `<methodKey>`):
-```bash
-callgraph query "SELECT m.Display FROM Edges e JOIN Methods m ON m.Key = e.FromKey WHERE e.ToKey = '<methodKey>'"
-```
-
-One-hop callees of a method (what `<methodKey>` calls):
-```bash
-callgraph query "SELECT m.Display FROM Edges e JOIN Methods m ON m.Key = e.ToKey WHERE e.FromKey = '<methodKey>'"
-```
-
-To get a method's `Key` first, resolve it from `Methods` by `Display`/`ContainingType`/`FilePath`, then use that
-value in the `Edges` join above.
-
-Consumers of a facade/accessor **property** (who reads `Repositories.PaymentProviders`) — a property is a
-`property-get` method, so join by `Display`:
+Consumers of a facade/accessor **property** — a property is a `property-get` method, so join on `Display`:
 ```bash
 callgraph query "
 SELECT DISTINCT caller.ContainingType, caller.FilePath
 FROM Edges e
 JOIN Methods callee ON callee.Key = e.ToKey
 JOIN Methods caller ON caller.Key = e.FromKey
-WHERE callee.Display = 'RichEntityRepository<PaymentProvider> Repositories.PaymentProviders.get'
-ORDER BY caller.FilePath"
+WHERE callee.Display = 'RichEntityRepository<PaymentProvider> Repositories.PaymentProviders.get'"
 ```
 
-Consumer **breadth** of an interface, bucketed by module (effort estimation) — this is where CallGraph
-beats grep, because it counts callers reaching the interface through a typed accessor:
+Consumer **breadth** bucketed by module (effort estimation) — CallGraph beats grep here because it
+counts callers reaching the interface through a typed accessor:
 ```bash
 callgraph query "
 SELECT
-  CASE
-    WHEN caller.FilePath LIKE '%/Hosts/%' THEN 'Hosts'
-    WHEN caller.FilePath LIKE '%/Mews.Business/%' THEN 'Core.Business'
-    ELSE 'Other'
-  END AS bucket,
+  CASE WHEN caller.FilePath LIKE '%/Hosts/%' THEN 'Hosts'
+       WHEN caller.FilePath LIKE '%/Mews.Business/%' THEN 'Core.Business'
+       ELSE 'Other' END AS bucket,
   COUNT(DISTINCT caller.ContainingType) AS consumer_types
 FROM Edges e
 JOIN Methods callee ON callee.Key = e.ToKey
 JOIN Methods caller ON caller.Key = e.FromKey
-WHERE callee.ContainingType LIKE '%IPaymentSuperComponent%'
+WHERE callee.ContainingType LIKE '%IPaymentSuperComponent%' AND e.Kind <> 'calls-via-message'
 GROUP BY bucket ORDER BY consumer_types DESC"
 ```
 
-Proving a member is unused ("paper seam") — expect an **empty** result set:
+Proving a member is unused ("paper seam") — expect an **empty** result:
 ```bash
 callgraph query "
-SELECT caller.ContainingType, callee.Display
-FROM Edges e
+SELECT caller.ContainingType FROM Edges e
 JOIN Methods callee ON callee.Key = e.ToKey
 JOIN Methods caller ON caller.Key = e.FromKey
 WHERE callee.ContainingType LIKE '%IPaymentCardStorage%'"
 ```
 
-After locating a method with `query`, read its exact body directly from the file at `FilePath:StartLine`
-rather than trying to extract source via SQL — the index stores metadata, not method bodies.
+## Verifying results
 
-> **Validate surprising results by reading source.** CallGraph is a semantic index, not ground truth.
-> When a count contradicts a text search (usually because access is via an accessor property the grep
-> couldn't see), resolve it by opening the caller file at `FilePath:StartLine` and confirming the call —
-> don't trust either tool blindly. In practice CallGraph wins these on interface/accessor dispatch, and
-> text search wins on string-literal/raw-SQL usage.
+The index stores metadata, not bodies — read source at `FilePath:StartLine` to confirm anything
+surprising. Two failure modes specifically:
+
+- **Name patterns on `Display` match unintended semantics.** `Display` is a signature string, not a
+  typed effect. When classifying by verb (a common shortcut for "does this slice write data?"),
+  `'%.Delete%'` matches an HTTP `DeleteAccount` on a REST client, `'%.Create(%'` matches value-object
+  factories, `'%.Set%'` matches every `Settlement…` member. Constrain by `ContainingType` too.
+- **Counts contradicting text search.** Usually CallGraph is right (accessor dispatch grep can't see),
+  but confirm rather than trusting either blindly. Text search wins on string-literal/raw-SQL usage.
 
 ## When not to use this
 
-For multi-hop / recursive call-graph traversal (walking several hops of callers or callees, or building a
-call tree), use `callgraph analyze` (see the `callgraph-analyze-callgraph` skill) instead of hand-written
-recursive SQL. `analyze` already implements visibility-aware, depth-bounded traversal; reimplementing that
-with recursive CTEs is unnecessary and error-prone.
+For multi-hop traversal or call trees, use `callgraph analyze` (the `callgraph-analyze` skill) — it
+implements visibility-aware, depth-bounded traversal; hand-rolled recursive CTEs are error-prone.
+
+**One exception where SQL is right:** classifying many slices against a fixed sink set ("which of
+these 12 folders touch persistence at all?"). That's a one-hop membership test repeated over slices,
+not a traversal — and see the reachability-saturation note in `callgraph-analyze` for why the
+multi-hop framing answers that question vacuously.

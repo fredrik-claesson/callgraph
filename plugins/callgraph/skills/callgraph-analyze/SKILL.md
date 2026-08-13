@@ -18,6 +18,15 @@ it finds callers that reach a component through a typed accessor (`context.Foo.B
 (`grep`/`ck refs` on the type name) structurally cannot see. That indirection-awareness is the main reason
 to prefer it over source scanning for reachability questions.
 
+> **Reachability saturates against infrastructure targets.** "Does A reach B" is only meaningful when
+> B is *specific*. If B is something most code funnels into — `SaveChanges`, a DbContext member, a
+> logger, a transaction scope — then in a large codebase essentially every A reaches it, and an
+> unbounded yes carries no information. **Symptom: every candidate you classify comes back positive.**
+> That means the target is too generic, not that the codebase is uniformly coupled. Either bound the
+> traversal to the slice itself (does A reach B *through A's own code*, vs. only via a component that
+> would become a service boundary — a data dependency vs. a port dependency), or drop to a one-hop
+> membership test against a sink set in SQL (`callgraph-sql`).
+
 Prefer the **`callgraph-sql`** skill instead when you only need **one-hop** caller/callee lists or
 **counts/breadth** (e.g. "how many modules call `IFooComponent`") — that's a single `Edges` join, no
 traversal. And note the shared blind spot of both tools: dependencies with **no C# call edge** — raw SQL
