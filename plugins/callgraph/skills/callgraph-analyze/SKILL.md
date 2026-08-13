@@ -26,6 +26,13 @@ to prefer it over source scanning for reachability questions.
 > traversal to the slice itself (does A reach B *through A's own code*, vs. only via a component that
 > would become a service boundary — a data dependency vs. a port dependency), or drop to a one-hop
 > membership test against a sink set in SQL (`callgraph-sql`).
+>
+> **A second cause: `analyze` traverses `calls-via-message` *may-dispatch* edges and has no `--kind`
+> filter.** Those edges fan out to every handler-shaped method in the solution (~49 targets on
+> average, peaking at 296 — see the `calls-via-message` callout in the `callgraph-sql` skill), so at
+> depth ≥ 2 a single message-dispatching hop pulls in dozens of unrelated types. Narrowing the target
+> won't fix that. Confirm any surprising multi-hop path by reading source at `FilePath:StartLine`, and
+> use `callgraph-sql` with the filter when you need a countable answer.
 
 Prefer the **`callgraph-sql`** skill instead when you only need **one-hop** caller/callee lists or
 **counts/breadth** (e.g. "how many modules call `IFooComponent`") — that's a single `Edges` join, no

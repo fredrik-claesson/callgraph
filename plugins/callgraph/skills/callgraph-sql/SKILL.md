@@ -1,6 +1,6 @@
 ---
 name: callgraph-sql
-description: Query the indexed CallGraph SQLite database directly with read-only SQL for one-hop who-calls-whom relationships, consumer breadth/counts of a method or interface, and proving a member is unused — resolving interface/property/delegate-dispatched callers that text search (grep/ck refs on a type name) misses. Use for call-dependency questions, not for symbol existence/definition/line lookups (use ck) or string-only patterns like raw SQL.
+description: Query the indexed CallGraph SQLite database with read-only SQL for one-hop caller/callee lists, consumer breadth/counts, and unused-member proofs — resolving interface/property/delegate-dispatched callers that text search misses. Not for symbol lookups (use ck) or string-only patterns.
 ---
 
 # CallGraph SQL Query
@@ -110,7 +110,15 @@ Both: `SolutionId`, `Path`, `ReversePath` (segments reversed, for fast suffix/ba
 
 ## Worked examples
 
-Resolve a method's `Key` from `Methods` (by `Display`/`ContainingType`/`FilePath`), then:
+Resolve a method's `Key` from `Methods` (by `Display`/`ContainingType`/`FilePath`) — the same lookup
+shape serves plain member discovery in a type or file:
+
+```bash
+# members of a type (add FilePath/Kind filters to narrow); Files works the same way on Path
+callgraph query "SELECT Display, StartLine FROM Methods WHERE ContainingType='FooService'"
+```
+
+then:
 
 ```bash
 # callers of a method            (callees: swap FromKey/ToKey)
@@ -124,7 +132,8 @@ SELECT DISTINCT caller.ContainingType, caller.FilePath
 FROM Edges e
 JOIN Methods callee ON callee.Key = e.ToKey
 JOIN Methods caller ON caller.Key = e.FromKey
-WHERE callee.Display = 'RichEntityRepository<PaymentProvider> Repositories.PaymentProviders.get'"
+WHERE callee.Display = 'RichEntityRepository<PaymentProvider> Repositories.PaymentProviders.get'
+  AND e.Kind <> 'calls-via-message'"
 ```
 
 Consumer **breadth** bucketed by module (effort estimation) — CallGraph beats grep here because it
@@ -149,7 +158,7 @@ callgraph query "
 SELECT caller.ContainingType FROM Edges e
 JOIN Methods callee ON callee.Key = e.ToKey
 JOIN Methods caller ON caller.Key = e.FromKey
-WHERE callee.ContainingType LIKE '%IPaymentCardStorage%'"
+WHERE callee.ContainingType LIKE '%IPaymentCardStorage%' AND e.Kind <> 'calls-via-message'"
 ```
 
 ## Verifying results
